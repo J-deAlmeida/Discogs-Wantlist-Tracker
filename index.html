@@ -123,7 +123,7 @@ label{display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:6px}
   <div class="header">
     <div class="logo">Porto <span>&times;</span> Wantlist</div>
     <div class="sub">Check your Discogs wantlist across Porto's record stores</div>
-    <div class="ver">v1.1 &mdash; 2026-03-15 fix seller auth</div>
+    <div class="ver">v1.2 &mdash; 2026-03-15 inventory progress</div>
   </div>
   <div id="root"></div>
 </div>
@@ -276,7 +276,7 @@ async function fetchWL(){
 /* ========== STRATEGY A: DISCOGS SELLER INVENTORY ========== */
 async function fetchSellerInventory(seller){
   if(S.invCache[seller])return S.invCache[seller];
-  var ids=new Set(),pg=1,tp=1;
+  var ids=new Set(),pg=1,tp=1,tot=0;
   while(pg<=tp){
     /* Pass token as query param (not header) to avoid CORS preflight
        while still getting authenticated rate limits (60/min vs 25). */
@@ -285,13 +285,18 @@ async function fetchSellerInventory(seller){
     if(S.token)url+="&token="+encodeURIComponent(S.token);
     var r=await fetch(url,{headers:hd});
     if(!r.ok){
-      if(r.status===429){await wait(2500);continue}
+      if(r.status===429){await wait(2000);continue}
       console.log("[inventory] "+seller+" error "+r.status);break}
     var d=await r.json();
     tp=d.pagination?d.pagination.pages:1;
+    tot=d.pagination?d.pagination.items:0;
     (d.listings||[]).forEach(function(l){if(l.release&&l.release.id)ids.add(String(l.release.id))});
+    /* Update progress UI */
+    S.checkProg={done:ids.size,tot:tot,found:0,pg:pg,tp:tp};
+    var pt=$("chkprog");if(pt)pt.textContent="Page "+pg+"/"+tp+" \u2014 "+ids.size+"/"+tot+" items loaded";
+    var pf=$("chkfill");if(pf)pf.style.width=(pg/Math.max(tp,1)*100)+"%";
     pg++;
-    if(pg<=tp)await wait(1100)}
+    if(pg<=tp)await wait(1050)}
   S.invCache[seller]=ids;
   return ids
 }
@@ -541,9 +546,10 @@ function render(){
     var cp=S.checkProg;
     o+='<button class="btn-sec btn-sm" id="bst">\u25A0 Stop</button>'+spinSvg()+
       '<div class="pw"><div class="phase-label" id="chkphase">'+(S.checkPhase==="discogs"?"Checking Discogs inventory: ":"Checking website: ")+h(S.checkStore)+'</div>';
-    if(cp)o+='<div class="progress-text" id="chkprog">'+cp.done+'/'+cp.tot+' ('+cp.found+' found)</div>'+
+    if(cp)o+='<div class="progress-text" id="chkprog">'+cp.done+'/'+cp.tot+'</div>'+
       '<div class="pbar"><div class="pfill pfill-green" id="chkfill" style="width:'+(cp.done/Math.max(cp.tot,1)*100)+'%"></div></div>';
-    else o+='<div class="progress-text" id="chkprog">Loading inventory\u2026</div>';
+    else o+='<div class="progress-text" id="chkprog">Loading inventory\u2026</div>'+
+      '<div class="pbar"><div class="pfill pfill-green" id="chkfill" style="width:0%"></div></div>';
     o+='<div class="dig-msg" id="digmsg">'+h(DIG_MSGS[digIdx])+'</div></div>'}
   o+='</div></div>';
 
