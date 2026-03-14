@@ -278,9 +278,11 @@ async function fetchSellerInventory(seller){
   if(S.invCache[seller])return S.invCache[seller];
   var ids=new Set(),pg=1,tp=1;
   while(pg<=tp){
+    /* Pass token as query param (not header) to avoid CORS preflight
+       while still getting authenticated rate limits (60/min vs 25). */
     var hd={"User-Agent":"PortoWantlistTracker/1.0"};
-    if(S.token)hd["Authorization"]="Discogs token="+S.token;
-    var url=API+"/users/"+encodeURIComponent(seller)+"/inventory?per_page=100&page="+pg+"&sort=artist&sort_order=asc";
+    var url=API+"/users/"+encodeURIComponent(seller)+"/inventory?per_page=100&page="+pg+"&sort=listed&sort_order=desc";
+    if(S.token)url+="&token="+encodeURIComponent(S.token);
     var r=await fetch(url,{headers:hd});
     if(!r.ok){
       if(r.status===429){await wait(2500);continue}
