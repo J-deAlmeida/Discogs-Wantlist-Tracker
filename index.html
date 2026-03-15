@@ -124,7 +124,7 @@ label{display:block;font-size:13px;font-weight:600;color:#333;margin-bottom:6px}
   <div class="header">
     <div class="logo">Porto <span>&times;</span> Wantlist</div>
     <div class="sub">Check your Discogs wantlist across Porto's record stores</div>
-    <div class="ver">v2.1 &mdash; 2026-03-15 tighter matching + UX fixes</div>
+    <div class="ver">v2.2 &mdash; 2026-03-15 fix search queries + detection</div>
   </div>
   <div id="root"></div>
 </div>
@@ -145,8 +145,14 @@ function norm(s){return(s||"").toLowerCase()
   .replace(/[\u00f9-\u00fc]/g,"u").replace(/[\u00f1]/g,"n").replace(/[\u00e7]/g,"c")
   .replace(/[^a-z0-9]/g," ").replace(/\s+/g," ").trim()}
 function qry(it){
-  var a=it.artist.replace(/\s*\(\d+\)\s*$/,"").replace(/\s*,\s*$/,"").trim();
-  return a+" "+it.title.trim()}
+  /* Use only the FIRST artist (before any comma) + title.
+     Strip special chars that break search engines. */
+  var a=it.artist.replace(/\s*\(\d+\)\s*$/,"").split(",")[0].trim();
+  var t=it.title.replace(/[+&]/g," ").replace(/,(\d)/g,"$1").trim();
+  return a+" "+t}
+function qryTitle(it){
+  /* Title-only query — useful for Shopify suggest which does fuzzy matching */
+  return it.title.replace(/[+&]/g," ").replace(/,(\d)/g,"$1").trim()}
 function textMatch(body,artist,title){
   var b=norm(body),a=norm(artist),t=norm(title);
   if(a.length<2||t.length<2)return false;
@@ -167,20 +173,17 @@ var STORES=[
   /* --- WEB: SEARCH (HTML) --- */
   {id:"materia",name:"Matéria Prima",short:"Matéria",type:"web-search",color:"#0F6E56",
    url:"https://www.materiaprima.pt",defOn:true,
-   getCheckUrl:function(it){return"https://www.materiaprima.pt/lista.php?search="+encodeURIComponent(qry(it))},
+   getCheckUrl:function(it){
+     /* Search by title only — Matéria Prima's search works best with shorter queries */
+     return"https://www.materiaprima.pt/lista.php?search="+encodeURIComponent(qryTitle(it))},
    detect:function(j,it){
      if(!j.bodyText)return"err";
-     /* Their search page always has recommendations with "Buy" buttons.
-        Match only if both artist AND title appear in the body — but also check
-        that the title isn't just in the nav/header noise. Require proximity:
-        both must appear within 500 chars of each other. */
-     var b=norm(j.bodyText),a=norm(it.artist),t=norm(it.title);
-     if(a.length<2||t.length<2)return"no";
-     var ai=b.indexOf(a),ti=b.indexOf(t);
-     if(ai===-1||ti===-1)return"no";
-     if(Math.abs(ai-ti)<500)return"found";
+     var b=norm(j.bodyText),ti=norm(it.title),ai=norm(it.artist.split(",")[0]);
+     if(ti.length<3)return"no";
+     /* Check if title appears in body — then verify artist is also somewhere on page */
+     if(b.indexOf(ti)!==-1&&(ai.length<3||b.indexOf(ai)!==-1))return"found";
      return"no"},
-   getStoreUrl:function(it){return"https://www.materiaprima.pt/lista.php?search="+encodeURIComponent(qry(it))}},
+   getStoreUrl:function(it){return"https://www.materiaprima.pt/lista.php?search="+encodeURIComponent(qryTitle(it))}},
 
   {id:"portocalling",name:"Porto Calling",short:"PtCalling",type:"web-search",color:"#639922",
    url:"https://portocalling.com",defOn:true,
@@ -203,44 +206,58 @@ var STORES=[
 
   {id:"socorro",name:"Socorro",short:"Socorro",type:"web-search",color:"#A32D2D",
    url:"https://socorro.pt",defOn:true,
-   getCheckUrl:function(it){return"https://socorro.pt/en/search?q="+encodeURIComponent(qry(it))},
+   getCheckUrl:function(it){
+     /* Socorro uses /en/vinyl/{artist-slug}-{title-slug} URLs.
+        Try direct product page like 8mm approach. */
+     var s=slug(it.artist.split(",")[0]+"-"+it.title);
+     return"https://socorro.pt/en/vinyl/"+s},
    detect:function(j,it){
      if(!j.bodyText)return"err";
-     var b=norm(j.bodyText);
-     if(b.indexOf("no results")!==-1||b.indexOf("sem resultados")!==-1||b.indexOf("search new products")!==-1)return"no";
-     /* Only match if both artist AND title appear, and page has a price */
-     if(textMatch(j.bodyText,it.artist,it.title)&&j.hasPrice)return"found";
+     if(j.status===404||j.status===301)return"no";
+     /* If the page title contains the album title, it's a real product page */
+     var pt=norm(j.title||"");
+     var ti=norm(it.title);
+     if(ti.length>3&&pt.indexOf(ti)!==-1)return"found";
+     /* Fallback: check body for artist+title near a price */
+     if(textMatch(j.bodyText,it.artist.split(",")[0],it.title)&&j.hasPrice)return"found";
      return"no"},
-   getStoreUrl:function(it){return"https://socorro.pt/en/search?q="+encodeURIComponent(qry(it))}},
+   getStoreUrl:function(it){
+     var s=slug(it.artist.split(",")[0]+"-"+it.title);
+     return"https://socorro.pt/en/vinyl/"+s}},
 
   /* --- WEB: SEARCH (Shopify JSON) --- */
   {id:"musicriots",name:"Music and Riots",short:"M&R",type:"web-search",color:"#854F0B",
    url:"https://shopmusicandriots.com",defOn:true,
-   getCheckUrl:function(it){return"https://shopmusicandriots.com/search/suggest.json?q="+encodeURIComponent(qry(it))+"&resources[type]=product&limit=6"},
+   getCheckUrl:function(it){return"https://shopmusicandriots.com/search/suggest.json?q="+encodeURIComponent(qryTitle(it))+"&resources[type]=product&limit=10"},
    detect:function(j,it){
      if(j.json){
        var prods=(j.json.resources&&j.json.resources.results&&j.json.resources.results.products)||[];
+       var ti=norm(it.title),ai=norm(it.artist.split(",")[0]);
        for(var i=0;i<prods.length;i++){
          var pt=norm(prods[i].title||"");
-         if(pt.indexOf(norm(it.title))!==-1||pt.indexOf(norm(it.artist))!==-1)return"found"}
+         if(ti.length>3&&pt.indexOf(ti)!==-1)return"found";
+         if(ai.length>3&&pt.indexOf(ai)!==-1&&ti.length>3&&pt.indexOf(ti)!==-1)return"found"}
        return"no"}
-     if(j.bodyText&&textMatch(j.bodyText,it.artist,it.title)&&j.hasPrice)return"found";
      return"no"},
    getStoreUrl:function(it){return"https://shopmusicandriots.com/search?q="+encodeURIComponent(qry(it))+"&type=product"}},
 
   {id:"discosdobau",name:"Discos do Baú",short:"Baú",type:"web-search",color:"#712B13",
    url:"https://discosdobau.pt",defOn:true,
-   getCheckUrl:function(it){return"https://discosdobau.pt/en/search/suggest.json?q="+encodeURIComponent(qry(it))+"&resources[type]=product&limit=6"},
+   getCheckUrl:function(it){return"https://discosdobau.pt/search/suggest.json?q="+encodeURIComponent(qryTitle(it))+"&resources[type]=product&limit=10"},
    detect:function(j,it){
      if(j.json){
        var prods=(j.json.resources&&j.json.resources.results&&j.json.resources.results.products)||[];
+       var ti=norm(it.title),ai=norm(it.artist.split(",")[0]);
        for(var i=0;i<prods.length;i++){
          var pt=norm(prods[i].title||"");
-         if(pt.indexOf(norm(it.title))!==-1||pt.indexOf(norm(it.artist))!==-1)return"found"}
+         var pv=norm(prods[i].vendor||"");
+         var pAll=pt+" "+pv;
+         /* Match if title appears in product title, or if artist appears in vendor/title */
+         if(ti.length>3&&pAll.indexOf(ti)!==-1)return"found";
+         if(ai.length>3&&pAll.indexOf(ai)!==-1&&ti.length>3&&pAll.indexOf(ti)!==-1)return"found"}
        return"no"}
-     if(j.bodyText&&textMatch(j.bodyText,it.artist,it.title)&&j.hasPrice)return"found";
      return"no"},
-   getStoreUrl:function(it){return"https://discosdobau.pt/en/search?q="+encodeURIComponent(qry(it))+"&type=product"}},
+   getStoreUrl:function(it){return"https://discosdobau.pt/search?q="+encodeURIComponent(qry(it))+"&type=product"}},
 
   /* --- DISCOGS SELLERS (slow — off by default) --- */
   {id:"bunker",name:"Bunker Store",short:"Bunker",type:"discogs",
