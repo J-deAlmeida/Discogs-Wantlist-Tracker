@@ -134,7 +134,7 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
   <div class="header">
     <div class="logo">Porto <span>&times;</span> Wantlist</div>
     <div class="sub">Check your Discogs wantlist across Porto's record stores</div>
-    <div class="ver">v3.0 &mdash; 2026-03-15</div>
+    <div class="ver">v3.1 &mdash; 2026-03-15</div>
   </div>
   <div id="root"></div>
 </div>
@@ -410,7 +410,12 @@ function filtered(){
 /* ========== RENDER ========== */
 var IG='<svg viewBox="0 0 16 16"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>';
 var IL='<svg viewBox="0 0 16 16"><rect x="1" y="2" width="14" height="3" rx="1"/><rect x="1" y="7" width="14" height="3" rx="1"/><rect x="1" y="12" width="14" height="3" rx="1"/></svg>';
-function imgTag(src,sz){if(!src)return'<div class="ph">'+svg(sz||36)+'</div>';return'<img src="'+h(src)+'" alt="" loading="lazy" onerror="this.parentNode.innerHTML=\'<div class=ph>'+svg(sz||36).replace(/'/g,"\\'")+'</div>\'">'}
+/* Expose repImg globally for inline onerror */
+window.repImg=function(img){var sz=parseInt(img.getAttribute("data-sz"))||36;var d=document.createElement("div");d.className="ph";d.innerHTML=svg(sz);img.parentNode.replaceChild(d,img)};
+
+function imgTag(src,sz){
+  if(!src)return'<div class="ph">'+svg(sz||36)+'</div>';
+  return'<img src="'+h(src)+'" alt="" loading="lazy" data-sz="'+(sz||36)+'" onerror="repImg(this)">'}
 
 function badgesHTML(it){
   var stores=getItemStores(it);if(stores.length===0)return"";
