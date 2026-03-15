@@ -70,7 +70,8 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
 .store-opt{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--bd);border-radius:8px;cursor:pointer;transition:all .15s;background:var(--bg2);font-size:12px}
 .store-opt:hover{border-color:var(--tx3)}
 .store-opt.on{border-color:var(--acc);background:var(--bg3)}
-.store-opt .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.store-opt .logo{width:24px;height:24px;border-radius:50%;flex-shrink:0;overflow:hidden;background:var(--bg3);display:flex;align-items:center;justify-content:center}
+.store-opt .logo img{width:100%;height:100%;object-fit:cover}
 .store-opt .sn{font-weight:600;color:var(--tx);flex:1}
 .store-opt .st{font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.3px}
 .store-opt input{display:none}
@@ -79,7 +80,8 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
 .store-stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 .store-stat{display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--bd2);border-radius:8px;background:var(--bg2);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
 .store-stat:hover{border-color:var(--tx3)}
-.store-stat .dot{width:8px;height:8px;border-radius:50%}
+.store-stat .slogo{width:16px;height:16px;border-radius:50%;overflow:hidden;flex-shrink:0}
+.store-stat .slogo img{width:100%;height:100%;object-fit:cover}
 .store-stat .cnt{color:var(--grn)}
 .store-stat.on{border-color:var(--acc);background:var(--bg3)}
 /* Items */
@@ -134,7 +136,7 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
   <div class="header">
     <div class="logo">Porto <span>&times;</span> Wantlist</div>
     <div class="sub">Check your Discogs wantlist across Porto's record stores</div>
-    <div class="ver">v3.3 &mdash; 2026-03-15</div>
+    <div class="ver">v3.5 &mdash; 2026-03-15 store logos</div>
   </div>
   <div id="root"></div>
 </div>
@@ -190,8 +192,8 @@ function shopifyMatch(prod,it){
 
 /* ========== STORE REGISTRY ========== */
 var STORES=[
-  {id:"8mm",name:"8mm Records",short:"8mm",type:"web",color:"#111",
-   url:"https://www.8mm-records.com",defOn:true,
+  {id:"8mm",name:"8mm Records",short:"8mm",type:"web",color:"#D35400",
+   logo:"img/8mm.png",url:"https://www.8mm-records.com",defOn:true,
    getCheckUrl:function(it){return"https://www.8mm-records.com/release/"+it.id+"/"+slug(it.artist+"-"+it.title)},
    detect:function(j,it){
      var oos=/no stock|sem stock|esgotado|sold out|out of stock|indispon/i.test(j.bodyText||"");
@@ -201,7 +203,7 @@ var STORES=[
    getStoreUrl:function(it){return"https://www.8mm-records.com/release/"+it.id+"/"+slug(it.artist+"-"+it.title)}},
 
   {id:"materia",name:"Matéria Prima",short:"Matéria",type:"web-search",color:"#0F6E56",
-   url:"https://www.materiaprima.pt",defOn:true,
+   logo:"img/materia.png",url:"https://www.materiaprima.pt",defOn:true,
    getCheckUrl:function(it){return"https://www.materiaprima.pt/lista.php?search="+encodeURIComponent(qryTitle(it))},
    detect:function(j,it){
      if(!j.bodyText)return{s:"err"};
@@ -214,7 +216,7 @@ var STORES=[
    getStoreUrl:function(it){return"https://www.materiaprima.pt/lista.php?search="+encodeURIComponent(qryTitle(it))}},
 
   {id:"portocalling",name:"Porto Calling",short:"PtCalling",type:"web-search",color:"#639922",
-   url:"https://portocalling.com",defOn:true,
+   logo:"img/portocalling.png",url:"https://portocalling.com",defOn:true,
    getCheckUrl:function(it){return"https://portocalling.com/en/?s="+encodeURIComponent(qry(it))+"&post_type=product"},
    detect:function(j,it){
      if(!j.bodyText)return{s:"err"};
@@ -230,7 +232,7 @@ var STORES=[
    getStoreUrl:function(it){return"https://portocalling.com/en/?s="+encodeURIComponent(qry(it))+"&post_type=product"}},
 
   {id:"socorro",name:"Socorro",short:"Socorro",type:"web-search",color:"#A32D2D",
-   url:"https://socorro.pt",defOn:true,
+   logo:"img/socorro.png",url:"https://socorro.pt",defOn:true,
    getCheckUrl:function(it){var s=slug(it.artist.split(",")[0]+"-"+it.title);return"https://socorro.pt/en/vinyl/"+s},
    detect:function(j,it){
      if(!j.bodyText)return{s:"err"};
@@ -245,7 +247,7 @@ var STORES=[
    getStoreUrl:function(it){var s=slug(it.artist.split(",")[0]+"-"+it.title);return"https://socorro.pt/en/vinyl/"+s}},
 
   {id:"musicriots",name:"Music and Riots",short:"M&R",type:"web-search",color:"#854F0B",
-   url:"https://shopmusicandriots.com",defOn:true,
+   logo:"img/musicriots.png",url:"https://shopmusicandriots.com",defOn:true,
    getCheckUrl:function(it){return"https://shopmusicandriots.com/search/suggest.json?q="+encodeURIComponent(qry(it))+"&resources[type]=product&limit=10"},
    detect:function(j,it){
      if(!j.json)return{s:"no"};
@@ -255,7 +257,7 @@ var STORES=[
    getStoreUrl:function(it){return"https://shopmusicandriots.com/search?q="+encodeURIComponent(qry(it))+"&type=product"}},
 
   {id:"discosdobau",name:"Discos do Baú",short:"Baú",type:"web-search",color:"#712B13",
-   url:"https://discosdobau.pt",defOn:true,
+   logo:"img/discosdobau.png",url:"https://discosdobau.pt",defOn:true,
    getCheckUrl:function(it){return"https://discosdobau.pt/search/suggest.json?q="+encodeURIComponent(qry(it))+"&resources[type]=product&limit=10"},
    detect:function(j,it){
      if(!j.json)return{s:"no"};
@@ -266,16 +268,18 @@ var STORES=[
 
   {id:"bunker",name:"Bunker Store",short:"Bunker",type:"discogs",
    seller:"PerAngustaAdAugusta",color:"#534AB7",defOn:false,
-   url:"https://www.discogs.com/seller/PerAngustaAdAugusta/profile"},
+   logo:"img/bunker.png",url:"https://www.discogs.com/seller/PerAngustaAdAugusta/profile"},
   {id:"circus",name:"Circus Records",short:"Circus",type:"discogs",
    seller:"CircusRecordShop",color:"#D85A30",defOn:false,
-   url:"https://www.discogs.com/seller/CircusRecordShop/profile"},
+   logo:"img/circus.png",url:"https://www.discogs.com/seller/CircusRecordShop/profile"},
   {id:"piranha",name:"Piranha",short:"Piranha",type:"discogs",
    seller:"PIRANHACD",color:"#993556",defOn:false,
-   url:"https://www.discogs.com/seller/PIRANHACD/profile"},
+   logo:"img/piranha.png",url:"https://www.discogs.com/seller/PIRANHACD/profile"},
 
-  {id:"louie",name:"Louie Louie",short:"Louie",type:"web-tbd",color:"#185FA5",url:"https://www.louielouie.pt"},
-  {id:"tubitek",name:"Tubitek",short:"Tubitek",type:"web-tbd",color:"#3C3489",url:"https://cdgo.com"}
+  {id:"louie",name:"Louie Louie",short:"Louie",type:"web-tbd",color:"#185FA5",
+   logo:"img/louie.png",url:"https://www.louielouie.pt"},
+  {id:"tubitek",name:"Tubitek",short:"Tubitek",type:"web-tbd",color:"#3C3489",
+   logo:"img/tubitek.png",url:"https://cdgo.com"}
 ];
 
 var CHECKABLE=STORES.filter(function(s){return s.type!=="web-tbd"});
@@ -490,7 +494,7 @@ function render(){
     var checkable=s.type!=="web-tbd",checked=S.selectedStores[s.id],tbd=s.type==="web-tbd";
     var typeLabel=s.type==="discogs"?"Discogs \u00b7 Slow":s.type==="web"?"Website":s.type==="web-search"?"Search":"Coming soon";
     o+='<label class="store-opt'+(checked&&checkable?' on':'')+'" style="'+(tbd?'opacity:.5;cursor:default':'')+'">';
-    o+='<div class="dot" style="background:'+s.color+'"></div><div style="flex:1"><div class="sn">'+h(s.name)+'</div><div class="st">'+typeLabel+'</div></div>';
+    o+='<div class="logo">'+(s.logo?'<img src="'+h(s.logo)+'" alt="">':'')+'</div><div style="flex:1"><div class="sn">'+h(s.name)+'</div><div class="st">'+typeLabel+'</div></div>';
     if(checkable)o+='<input type="checkbox" data-sid="'+s.id+'"'+(checked?' checked':'')+'>';
     o+='</label>'});
   o+='</div>';
@@ -514,7 +518,7 @@ function render(){
     o+='<div class="store-stats">';
     o+='<div class="store-stat'+(S.onlyFound&&!S.filterStore?' on':'')+'" data-sf="all" style="cursor:pointer"><span style="font-size:11px">All found</span> <span class="cnt">'+tf+'</span></div>';
     CHECKABLE.forEach(function(s){if(!S.results[s.id])return;var fc=storeFoundCount(s.id);
-      if(fc>0)o+='<div class="store-stat'+(S.filterStore===s.id?' on':'')+'" data-sf="'+s.id+'" style="cursor:pointer"><div class="dot" style="background:'+s.color+'"></div>'+h(s.short)+' <span class="cnt">'+fc+'</span></div>'});
+      if(fc>0)o+='<div class="store-stat'+(S.filterStore===s.id?' on':'')+'" data-sf="'+s.id+'" style="cursor:pointer">'+(s.logo?'<div class="slogo"><img src="'+h(s.logo)+'" alt=""></div>':'')+h(s.short)+' <span class="cnt">'+fc+'</span></div>'});
     o+='</div>'}
 
   /* Toolbar */
