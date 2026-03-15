@@ -140,6 +140,7 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
 .more{text-align:center;padding:20px}
 .vinyl{opacity:.15}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{width:20%;opacity:.4}50%{width:80%;opacity:.8}}
 .spinner{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;animation:spin 1.8s linear infinite}
 .spinner svg{display:block}
 .phase-label{font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
@@ -288,13 +289,13 @@ var STORES=[
    getStoreUrl:function(it){return"https://discosdobau.pt/search?q="+encodeURIComponent(qry(it))+"&type=product"}},
 
   {id:"bunker",name:"Bunker Store",short:"Bunker",type:"discogs",
-   seller:"PerAngustaAdAugusta",color:"#534AB7",defOn:false,
+   seller:"PerAngustaAdAugusta",color:"#534AB7",defOn:true,
    logo:"img/bunker.png",url:"https://www.discogs.com/seller/PerAngustaAdAugusta/profile"},
   {id:"circus",name:"Circus Records",short:"Circus",type:"discogs",
-   seller:"CircusRecordShop",color:"#D85A30",defOn:false,
+   seller:"CircusRecordShop",color:"#D85A30",defOn:true,
    logo:"img/circus.png",url:"https://www.discogs.com/seller/CircusRecordShop/profile"},
   {id:"piranha",name:"Piranha",short:"Piranha",type:"discogs",
-   seller:"PIRANHACD",color:"#993556",defOn:false,
+   seller:"PIRANHACD",color:"#993556",defOn:true,
    logo:"img/piranha.png",url:"https://www.discogs.com/seller/PIRANHACD/profile"},
 
   {id:"louie",name:"Louie Louie",short:"Louie",type:"web-tbd",color:"#185FA5",
@@ -353,24 +354,30 @@ async function fetchWL(){
   }catch(e){S.error=e.message}S.loading=false;S.progress=null;render()}
 
 /* ========== DISCOGS SELLER ========== */
+/* ========== DISCOGS SELLER (via worker KV cache) ========== */
 async function fetchSellerInventory(seller){
   if(S.invCache[seller])return S.invCache[seller];
-  var ids=new Set(),pg=1,tp=1,tot=0;
-  while(pg<=tp&&!S.cskip){
-    var url=API+"/users/"+encodeURIComponent(seller)+"/inventory?per_page=100&page="+pg+"&sort=listed&sort_order=desc";
-    if(S.token)url+="&token="+encodeURIComponent(S.token);
-    var r=await fetch(url,{headers:{"User-Agent":"PortoWantlistTracker/3.0"}});
-    if(!r.ok){if(r.status===429){await wait(2000);continue}break}
-    var d=await r.json();tp=d.pagination?d.pagination.pages:1;tot=d.pagination?d.pagination.items:0;
-    (d.listings||[]).forEach(function(l){if(l.release&&l.release.id)ids.add(String(l.release.id))});
-    var pt=$("chkprog");if(pt)pt.textContent="Page "+pg+"/"+tp+" \u2014 "+ids.size+"/"+tot+" loaded";
-    var pf=$("chkfill");if(pf)pf.style.width=(pg/Math.max(tp,1)*100)+"%";
-    pg++;if(pg<=tp&&!S.cskip)await wait(1050)}
-  S.invCache[seller]=ids;return ids}
+  var url=WORKER+"?inventory="+encodeURIComponent(seller);
+  var r=await fetch(url);
+  if(!r.ok)throw new Error("Worker error "+r.status);
+  var d=await r.json();
+  if(d.error)throw new Error(d.error);
+  var ids=new Set(d.ids||[]);
+  S.invCache[seller]=ids;
+  var pt=$("chkprog");
+  if(pt){
+    if(d.cached)pt.textContent=d.count+" items loaded instantly (cached)";
+    else pt.textContent=d.count+" items loaded (fresh \u2014 cached for next time)"}
+  var pf=$("chkfill");if(pf)pf.style.width="100%";
+  return ids}
 
 async function checkDiscogsStore(store){
   S.checkPhase="discogs";S.checkStore=store.name;S.checkProg=null;S.cskip=false;updateCheckUI();
+  /* Show helpful message while waiting */
+  var pt=$("chkprog");if(pt)pt.textContent="Fetching from Discogs\u2026 first time may take up to a minute";
+  var pf=$("chkfill");if(pf){pf.style.width="0%";pf.style.animation="pulse 2s ease-in-out infinite"}
   var ids=await fetchSellerInventory(store.seller);
+  if(pf)pf.style.animation="";
   if(!S.results[store.id])S.results[store.id]={};
   var fc=0;S.items.forEach(function(it){
     if(ids.has(it.id)){S.results[store.id][it.id]={s:"found"};fc++}
@@ -534,7 +541,7 @@ function render(){
   o+='<div class="store-grid">';
   STORES.forEach(function(s){
     var checkable=s.type!=="web-tbd",checked=S.selectedStores[s.id],tbd=s.type==="web-tbd";
-    var typeLabel=s.type==="discogs"?"Discogs \u00b7 Slow":s.type==="web"?"Website":s.type==="web-search"?"Search":"Coming soon";
+    var typeLabel=s.type==="discogs"?"Discogs seller":s.type==="web"?"Website":s.type==="web-search"?"Search":"Coming soon";
     o+='<label class="store-opt'+(checked&&checkable?' on':'')+'" style="'+(tbd?'opacity:.5;cursor:default':'')+'">';
     o+='<div class="logo">'+(s.logo?'<img src="'+h(s.logo)+'" alt="">':'')+'</div><div style="flex:1"><div class="sn">'+h(s.name)+'</div><div class="st">'+typeLabel+'</div></div>';
     if(checkable)o+='<input type="checkbox" data-sid="'+s.id+'"'+(checked?' checked':'')+'>';
