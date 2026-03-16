@@ -89,6 +89,11 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
 .store-opt .logo img{width:100%;height:100%;object-fit:cover}
 .store-opt .sn{font-weight:600;color:var(--tx);flex:1}
 .store-opt .st{font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.3px}
+.store-opt .slinks{display:flex;gap:4px;margin-top:3px}
+.store-opt .slinks a{display:inline-flex;align-items:center;gap:3px;font-size:9px;color:var(--tx3);text-decoration:none;font-weight:600;padding:1px 6px;border:0.5px solid var(--bd3);border-radius:10px}
+.store-opt .slinks a:hover{border-color:var(--tx3);color:var(--tx)}
+.store-opt .slinks .ic{display:inline-flex;align-items:center;justify-content:center;width:10px;height:10px}
+.store-opt .slinks .ic svg{width:10px;height:10px;stroke:currentColor;stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .store-opt input{display:none}
 .check-progress{flex:1;min-width:250px;max-width:500px}
 .dig-msg{font-size:12px;color:var(--tx3);font-style:italic;margin-top:4px;height:16px;overflow:hidden}
@@ -157,7 +162,7 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
   <div class="header">
     <div class="logo">Porto <span>&times;</span> Wantlist</div>
     <div class="sub">Check your Discogs wantlist across Porto's record stores</div>
-    <div class="ver">v0.2.3 &mdash; 2026-03-15</div>
+    <div class="ver">v0.3.4 &mdash; 2026-03-16</div>
   </div>
   <div id="root"></div>
   <div style="text-align:center;padding:40px 16px 20px;font-size:11px;color:var(--tx3)">&copy; 2026 Geminus Dancing Studios. Ardazubre, Baixo Mondego.</div>
@@ -216,6 +221,7 @@ function shopifyMatch(prod,it){
 var STORES=[
   {id:"8mm",name:"8mm Records",short:"8mm",type:"web",color:"#D35400",
    logo:"img/8mm.png",url:"https://www.8mm-records.com",defOn:true,
+   map:"https://www.google.com/maps/search/8mm+Records+Rodrigues+Freitas+Porto",
    getCheckUrl:function(it){return"https://www.8mm-records.com/release/"+it.id+"/"+slug(it.artist+"-"+it.title)},
    detect:function(j,it){
      var oos=/no stock|sem stock|esgotado|sold out|out of stock|indispon/i.test(j.bodyText||"");
@@ -226,6 +232,7 @@ var STORES=[
 
   {id:"materia",name:"Matéria Prima",short:"Matéria",type:"web-search",color:"#0F6E56",
    logo:"img/materia.png",url:"https://www.materiaprima.pt",defOn:true,
+   map:"https://www.google.com/maps/search/Materia+Prima+Miguel+Bombarda+Porto",
    getCheckUrl:function(it){return"https://www.materiaprima.pt/lista.php?search="+encodeURIComponent(qryTitle(it))},
    detect:function(j,it){
      if(!j.bodyText)return{s:"err"};
@@ -239,6 +246,7 @@ var STORES=[
 
   {id:"portocalling",name:"Porto Calling",short:"PtCalling",type:"web-search",color:"#639922",
    logo:"img/portocalling.png",url:"https://portocalling.com",defOn:true,
+   map:"https://www.google.com/maps/search/Porto+Calling+Rua+da+Conceicao+Porto",
    getCheckUrl:function(it){return"https://portocalling.com/en/?s="+encodeURIComponent(qry(it))+"&post_type=product"},
    detect:function(j,it){
      if(!j.bodyText)return{s:"err"};
@@ -255,6 +263,7 @@ var STORES=[
 
   {id:"socorro",name:"Socorro",short:"Socorro",type:"web-search",color:"#A32D2D",
    logo:"img/socorro.png",url:"https://socorro.pt",defOn:true,
+   map:"https://www.google.com/maps/search/Socorro+Record+Store+Porto",
    getCheckUrl:function(it){var s=slug(it.artist.split(",")[0]+"-"+it.title);return"https://socorro.pt/en/vinyl/"+s},
    detect:function(j,it){
      if(!j.bodyText)return{s:"err"};
@@ -270,6 +279,7 @@ var STORES=[
 
   {id:"musicriots",name:"Music and Riots",short:"M&R",type:"web-search",color:"#854F0B",
    logo:"img/musicriots.png",url:"https://shopmusicandriots.com",defOn:true,
+   map:"https://www.google.com/maps/search/Music+and+Riots+Porto",
    getCheckUrl:function(it){return"https://shopmusicandriots.com/search/suggest.json?q="+encodeURIComponent(qry(it))+"&resources[type]=product&limit=10"},
    detect:function(j,it){
      if(!j.json)return{s:"no"};
@@ -280,6 +290,7 @@ var STORES=[
 
   {id:"discosdobau",name:"Discos do Baú",short:"Baú",type:"web-search",color:"#712B13",
    logo:"img/discosdobau.png",url:"https://discosdobau.pt",defOn:true,
+   map:"https://www.google.com/maps/search/Discos+do+Bau+Porto",
    getCheckUrl:function(it){return"https://discosdobau.pt/search/suggest.json?q="+encodeURIComponent(qry(it))+"&resources[type]=product&limit=10"},
    detect:function(j,it){
      if(!j.json)return{s:"no"};
@@ -290,18 +301,40 @@ var STORES=[
 
   {id:"bunker",name:"Bunker Store",short:"Bunker",type:"discogs",
    seller:"PerAngustaAdAugusta",color:"#534AB7",defOn:true,
-   logo:"img/bunker.png",url:"https://www.discogs.com/seller/PerAngustaAdAugusta/profile"},
+   logo:"img/bunker.png",url:"https://www.discogs.com/seller/PerAngustaAdAugusta/profile",
+   map:"https://www.google.com/maps/search/Bunker+Store+Passos+Manuel+Porto"},
   {id:"circus",name:"Circus Records",short:"Circus",type:"discogs",
    seller:"CircusRecordShop",color:"#D85A30",defOn:true,
-   logo:"img/circus.png",url:"https://www.discogs.com/seller/CircusRecordShop/profile"},
+   logo:"img/circus.png",url:"https://www.discogs.com/seller/CircusRecordShop/profile",
+   map:"https://www.google.com/maps/search/Circus+Records+Rosario+Porto"},
   {id:"piranha",name:"Piranha",short:"Piranha",type:"discogs",
    seller:"PIRANHACD",color:"#993556",defOn:true,
-   logo:"img/piranha.png",url:"https://www.discogs.com/seller/PIRANHACD/profile"},
+   logo:"img/piranha.png",url:"https://www.discogs.com/seller/PIRANHACD/profile",
+   map:"https://www.google.com/maps/search/Piranha+Record+Store+Porto"},
 
-  {id:"louie",name:"Louie Louie",short:"Louie",type:"web-tbd",color:"#185FA5",
-   logo:"img/louie.png",url:"https://www.louielouie.pt"},
+  {id:"louie",name:"Louie Louie",short:"Louie",type:"web-search",color:"#185FA5",
+   logo:"img/louie.png",url:"https://www.louielouie.pt",defOn:false,slow:true,
+   map:"https://www.google.com/maps/search/Louie+Louie+Almada+Porto",
+   concurrent:1,delay:1500,
+   getCheckUrl:function(it){return"https://louielouie.pt/en_us/catalogsearch/result/?q="+encodeURIComponent(qryTitle(it))},
+   detect:function(j,it){
+     if(!j.bodyText)return{s:"err"};
+     var b=norm(j.bodyText),ti=norm(it.title),ai=norm(it.artist.split(",")[0]);
+     /* Parse Magento item count */
+     var itemMatch=j.bodyText.match(/(\d+)\s*Items?\b/i);
+     var itemCount=itemMatch?parseInt(itemMatch[1]):0;
+     if(itemCount===0||b.indexOf("your search returned no results")!==-1)return{s:"no"};
+     /* Skip very short titles — too many false positives */
+     if(ti.length<5)return{s:"no"};
+     /* Require BOTH artist AND title in the body — not just one */
+     if(ai.length<3)return{s:"no"};
+     if(b.indexOf(ti)===-1||b.indexOf(ai)===-1)return{s:"no"};
+     var oos=/out of stock|esgotado|fora de stock|sem stock/i.test(j.bodyText);
+     return{s:"found",oos:oos}},
+   getStoreUrl:function(it){return"https://louielouie.pt/en_us/catalogsearch/result/?q="+encodeURIComponent(qry(it))}},
   {id:"tubitek",name:"Tubitek",short:"Tubitek",type:"web-tbd",color:"#3C3489",
-   logo:"img/tubitek.png",url:"https://cdgo.com"}
+   logo:"img/tubitek.png",url:"https://cdgo.com",
+   map:"https://www.google.com/maps/search/Tubitek+Praca+Dom+Joao+Porto"}
 ];
 
 var CHECKABLE=STORES.filter(function(s){return s.type!=="web-tbd"});
@@ -397,17 +430,19 @@ async function checkWebStore(store){
   S.checkPhase="web";S.checkStore=store.name;S.cskip=false;
   if(!S.results[store.id])S.results[store.id]={};
   var queue=S.items.slice(),done=0,tot=S.items.length;
+  var conc=store.concurrent||CONCURRENT;
+  var delay=store.delay||250;
   S.checkProg={done:0,tot:tot,found:0};updateCheckUI();
   while(queue.length>0&&!S.cabort&&!S.cskip){
-    var batch=queue.splice(0,CONCURRENT);
+    var batch=queue.splice(0,conc);
     var results=await Promise.all(batch.map(function(it){return checkWebItem(store,it).then(function(r){return{it:it,r:r}})}));
     results.forEach(function(o){S.results[store.id][o.it.id]=o.r});
     done+=batch.length;
     var fc=0;Object.values(S.results[store.id]).forEach(function(v){if(v.s==="found")fc++});
     S.checkProg={done:done,tot:tot,found:fc};
-    var pt=$("chkprog");if(pt)pt.textContent=done+"/"+tot+" checked ("+fc+" found)";
+    var pt=$("chkprog");if(pt)pt.textContent=done+"/"+tot+" checked ("+fc+" found at "+store.short+")";
     var pf=$("chkfill");if(pf)pf.style.width=(done/Math.max(tot,1)*100)+"%";
-    if(queue.length>0&&!S.cabort&&!S.cskip)await wait(250)}
+    if(queue.length>0&&!S.cabort&&!S.cskip)await wait(delay)}
   if(S.cskip)console.log("[web] Skipped "+store.name)}
 
 /* ========== CHECK ALL ========== */
@@ -541,9 +576,14 @@ function render(){
   o+='<div class="store-grid">';
   STORES.forEach(function(s){
     var checkable=s.type!=="web-tbd",checked=S.selectedStores[s.id],tbd=s.type==="web-tbd";
-    var typeLabel=s.type==="discogs"?"Discogs seller":s.type==="web"?"Website":s.type==="web-search"?"Search":"Coming soon";
+    var typeLabel=s.type==="discogs"?"Discogs seller":s.type==="web-tbd"?"Coming soon":"Website";
+    if(s.slow)typeLabel+=" \u00b7 Slow";
     o+='<label class="store-opt'+(checked&&checkable?' on':'')+'" style="'+(tbd?'opacity:.5;cursor:default':'')+'">';
-    o+='<div class="logo">'+(s.logo?'<img src="'+h(s.logo)+'" alt="">':'')+'</div><div style="flex:1"><div class="sn">'+h(s.name)+'</div><div class="st">'+typeLabel+'</div></div>';
+    o+='<div class="logo">'+(s.logo?'<img src="'+h(s.logo)+'" alt="">':'')+'</div><div style="flex:1"><div class="sn">'+h(s.name)+'</div><div class="st">'+typeLabel+'</div>';
+    o+='<div class="slinks">';
+    if(s.url)o+='<a href="'+h(s.url)+'" target="_blank" onclick="event.stopPropagation()"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>website</a>';
+    if(s.map)o+='<a href="'+h(s.map)+'" target="_blank" onclick="event.stopPropagation()"><span class="ic"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>map</a>';
+    o+='</div></div>';
     if(checkable)o+='<input type="checkbox" data-sid="'+s.id+'"'+(checked?' checked':'')+'>';
     o+='</label>'});
   o+='</div>';
