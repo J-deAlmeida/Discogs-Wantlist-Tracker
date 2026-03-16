@@ -162,6 +162,50 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
   .v-list .it{flex-wrap:wrap}
   .store-grid{grid-template-columns:1fr 1fr}
 }
+/* Dashboard — wantlist analyser */
+.dash-toggle{border:1px dashed var(--bd3);cursor:pointer;transition:all .2s}
+.dash-toggle:hover{border-color:var(--tx2)}
+.dash-toggle.on{border-style:solid;border-color:var(--acc);background:var(--bg3)}
+.dash-teaser{margin-bottom:16px}
+.dash-nudge{display:block;width:100%;padding:12px 16px;font-size:13px;font-weight:600;color:var(--tx2);background:var(--bg2);border:1px dashed var(--bd3);border-radius:10px;cursor:pointer;font-family:inherit;transition:all .2s;text-align:center}
+.dash-nudge:hover{border-color:var(--tx3);color:var(--tx);background:var(--bg3)}
+.dash-nudge.on{border-style:solid;border-color:var(--acc);color:var(--tx3);font-size:12px;padding:8px 16px}
+.dash-reveal{max-height:0;opacity:0;overflow:hidden;transition:max-height .5s cubic-bezier(.4,0,.2,1),opacity .4s ease}
+.dash-reveal.open{max-height:2000px;opacity:1}
+@keyframes dashFadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+.dash-fadein{animation:dashFadeIn .4s ease}
+.dash{background:var(--bg2);border:1px solid var(--bd);border-radius:12px;padding:24px;margin-bottom:20px;overflow:hidden;transition:all .3s ease}
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:700px){.dash-grid{grid-template-columns:1fr}}
+.dash-sect{background:var(--bg3);border-radius:10px;padding:16px}
+.dash-sect h3{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx3);margin-bottom:12px}
+.dash-sect.full{grid-column:1/-1}
+.dash-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
+.dash-bar-label{width:40px;text-align:right;color:var(--tx2);font-weight:600;flex-shrink:0}
+.dash-bar-track{flex:1;height:14px;background:var(--bd2);border-radius:7px;overflow:hidden}
+.dash-bar-fill{height:100%;border-radius:7px;transition:width .4s ease}
+.dash-bar-val{width:28px;font-size:11px;color:var(--tx3)}
+.dash-donut-wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.dash-donut{width:100px;height:100px;border-radius:50%;flex-shrink:0}
+.dash-donut-legend{display:flex;flex-direction:column;gap:4px;font-size:12px}
+.dash-donut-legend span{display:inline-flex;align-items:center;gap:6px}
+.dash-donut-legend .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.dash-rank{display:flex;flex-direction:column;gap:4px}
+.dash-rank-row{display:flex;align-items:center;gap:8px;font-size:12px}
+.dash-rank-pos{width:18px;height:18px;border-radius:50%;background:var(--bd2);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--tx2);flex-shrink:0}
+.dash-rank-name{flex:1;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-rank-cnt{font-size:11px;color:var(--tx3);font-weight:600}
+.dash-big{text-align:center;padding:12px 8px}
+.dash-big .val{font-size:28px;font-weight:800;color:var(--tx)}
+.dash-big .lbl{font-size:11px;color:var(--tx3);margin-top:2px}
+.dash-big-row{display:flex;justify-content:space-around;flex-wrap:wrap;gap:8px}
+.dash-archetype{text-align:center;padding:16px}
+.dash-archetype .title{font-size:20px;font-weight:800;color:var(--acc);margin-bottom:4px}
+.dash-archetype .sub{font-size:12px;color:var(--tx2);line-height:1.5}
+.dash-diversity{display:flex;align-items:center;gap:12px;padding:8px 0}
+.dash-div-bar{flex:1;height:10px;background:var(--bd2);border-radius:5px;overflow:hidden}
+.dash-div-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--grn),var(--acc))}
+.dash-div-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--tx3);margin-top:4px}
 </style>
 </head>
 <body>
@@ -170,7 +214,7 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
   <div class="header">
     <div class="logo">Wantlist <span>&times;</span> Tracker</div>
     <div class="sub">Check your Discogs wantlist across Porto & Lisbon record stores</div>
-    <div class="ver">v0.5.2 &mdash; 2026-03-16</div>
+    <div class="ver">v0.5.6 &mdash; 2026-03-16</div>
   </div>
   <div id="root"></div>
   <div style="text-align:center;padding:40px 16px 20px;font-size:11px;color:var(--tx3)">Visit your neighborhood record stores and shop locally.<br>&copy; 2026 Geminus Dancing Studios. Ardazubre, Baixo Mondego.</div>
@@ -423,8 +467,8 @@ var S={items:[],loaded:false,loading:false,error:null,progress:null,
   selectedStores:{},checking:false,cabort:false,cskip:false,
   checkPhase:"",checkStore:"",checkProg:null,
   /* results: { storeId: { releaseId: {s:"found"|"no"|"err", oos:bool} } } */
-  results:{},invCache:{},onlyFound:false,filterStore:null,hideOos:false,
-  cityPorto:true,cityLisbon:true,
+  results:{},invCache:{},onlyFound:false,filterStores:{},hideOos:false,
+  cityPorto:true,cityLisbon:true,showDash:false,
   user:"",token:""};
 CHECKABLE.forEach(function(s){S.selectedStores[s.id]=!!s.defOn});
 try{S.user=sessionStorage.getItem("dg_u")||"";S.token=sessionStorage.getItem("dg_t")||""}catch(e){}
@@ -440,7 +484,7 @@ function spinSvg(){return'<span class="spinner"><svg width="22" height="22" view
 /* ========== DISCOGS WANTLIST ========== */
 async function fetchWL(){
   S.loading=true;S.error=null;S.items=[];S.loaded=false;S.progress=null;S.vis=PER_PAGE;
-  S.search="";S.format="all";S.results={};S.checking=false;S.onlyFound=false;S.filterStore=null;S.invCache={};
+  S.search="";S.format="all";S.results={};S.checking=false;S.onlyFound=false;S.filterStores={};S.invCache={};
   render();
   var pg=1,all=[],tp=1,tot=0;
   try{
@@ -559,9 +603,9 @@ async function checkGraphQLStore(store){
 
 /* ========== CHECK ALL ========== */
 async function checkAll(forceRecheck){
-  S.checking=true;S.cabort=false;S.cskip=false;
+  S.checking=true;S.cabort=false;S.cskip=false;S.showDash=false;
   if(forceRecheck)S.results={};
-  S.filterStore=null;S.onlyFound=false;render();
+  S.filterStores={};S.onlyFound=false;render();
   var selected=CHECKABLE.filter(function(s){return S.selectedStores[s.id]});
   /* Skip stores already checked (unless re-check) */
   if(!forceRecheck)selected=selected.filter(function(s){return!S.results[s.id]});
@@ -576,7 +620,7 @@ async function checkAll(forceRecheck){
     await Promise.all(graphqlStores.map(function(s){return checkGraphQLStore(s)}));
     render()}
   for(var i=0;i<discogsStores.length&&!S.cabort;i++){await checkDiscogsStore(discogsStores[i]);render()}
-  S.checking=false;S.checkPhase="";S.checkStore="";S.checkProg=null;render()}
+  S.checking=false;S.showDash=false;S.checkPhase="";S.checkStore="";S.checkProg=null;render()}
 
 function updateCheckUI(){
   var el=$("chkphase");if(el)el.textContent=(S.checkPhase==="discogs"?"Loading: ":"Checking: ")+S.checkStore}
@@ -608,11 +652,13 @@ function fmtFoundCount(fmt){var c=0;S.items.forEach(function(it){
   if(getItemStores(it).length>0)c++});return c}
 function fmtBadge(it){var f=it.format.split(",")[0].trim();if(!f)return"";
   return'<span class="fmt-badge '+fmtClass(f)+'">'+h(f)+'</span>'}
+function hasFilterStores(){var k=Object.keys(S.filterStores);return k.length>0}
+function matchesStoreFilter(it){if(!hasFilterStores())return true;for(var k in S.filterStores){if(S.filterStores[k]&&isFoundAt(it,k))return true}return false}
 function filtered(){
   var q=S.search.toLowerCase(),f=S.format;
   return S.items.filter(function(it){
     var t=(it.artist+" "+it.title+" "+it.label+" "+it.catno).toLowerCase();
-    return(!q||t.indexOf(q)!==-1)&&(f==="all"||it.format.toLowerCase().indexOf(f.toLowerCase())!==-1)&&(!S.onlyFound||getItemStores(it).length>0)&&(!S.filterStore||isFoundAt(it,S.filterStore))&&(!S.hideOos||isInStockAnywhere(it))})}
+    return(!q||t.indexOf(q)!==-1)&&(f==="all"||it.format.toLowerCase().indexOf(f.toLowerCase())!==-1)&&(!S.onlyFound||getItemStores(it).length>0)&&matchesStoreFilter(it)&&(!S.hideOos||isInStockAnywhere(it))})}
 
 /* ========== RENDER ========== */
 var IG='<svg viewBox="0 0 16 16"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>';
@@ -669,6 +715,107 @@ function renderItem(it){
     '<div class="it-bd"><div class="it-ar">'+h(it.artist)+'</div><div class="it-ti">'+h(it.title)+'</div>'+
     '<div class="it-me">'+h(meta)+'</div>'+storeRow+'<div style="margin-top:4px">'+discLink+'</div></div></div>'}
 
+/* ========== DASHBOARD ANALYSER ========== */
+function analyseWantlist(items){
+  var decades={},formats={},labels={},artists={},years=[];
+  items.forEach(function(it){
+    /* Decades */
+    if(it.year&&it.year>1900){var dec=Math.floor(it.year/10)*10;decades[dec]=(decades[dec]||0)+1;years.push(it.year)}
+    /* Formats */
+    var f=it.format.split(",")[0].trim();if(f)formats[f]=(formats[f]||0)+1;
+    /* Labels */
+    var lb=it.label;if(lb&&lb!=="Not On Label"&&lb!=="Unknown")labels[lb]=(labels[lb]||0)+1;
+    /* Artists */
+    var ar=it.artist;if(ar)artists[ar]=(artists[ar]||0)+1});
+  /* Sort helpers */
+  function topN(obj,n){return Object.entries(obj).sort(function(a,b){return b[1]-a[1]}).slice(0,n)}
+  /* Year extremes */
+  years.sort(function(a,b){return a-b});
+  var oldest=years[0]||0,newest=years[years.length-1]||0;
+  var avgYear=years.length?Math.round(years.reduce(function(a,b){return a+b},0)/years.length):0;
+  /* Label diversity: unique labels / total items (0–1) */
+  var uLabels=Object.keys(labels).length;
+  var diversity=items.length>0?Math.min(1,uLabels/items.length):0;
+  /* Archetype */
+  var topFmt=topN(formats,1)[0];var topLbl=topN(labels,1)[0];
+  var vinylPct=((formats["Vinyl"]||0)/Math.max(items.length,1))*100;
+  var archetype=genArchetype(vinylPct,diversity,avgYear,topFmt,topLbl,items.length);
+  return{decades:decades,formats:formats,topLabels:topN(labels,7),topArtists:topN(artists,7),
+    oldest:oldest,newest:newest,avgYear:avgYear,diversity:diversity,archetype:archetype}}
+
+function genArchetype(vinylPct,diversity,avgYear,topFmt,topLbl,total){
+  var title,sub;
+  if(total<10){title="The Curious Ear";sub="A budding collection with room to grow"}
+  else if(vinylPct>80&&avgYear<1985){title="Crate Digger Classicist";sub="Deep in the bins, chasing original pressings from a golden era"}
+  else if(vinylPct>80&&avgYear>=1985){title="Modern Wax Devotee";sub="Vinyl is the format, but the taste is forward-looking"}
+  else if(diversity<0.3){title="Label Loyalist";sub="When you find a label you trust, you go deep — "+(topLbl?topLbl[0]+" knows":"respect")}
+  else if(diversity>0.75){title="Eclectic Navigator";sub="No genre boundaries, no label allegiance — just good music wherever it hides"}
+  else if(avgYear>=2010){title="New Wave Collector";sub="Ear to the ground, building a library of what\u2019s happening now"}
+  else if(avgYear<1975){title="Vintage Archaeologist";sub="The deeper the dig, the better the find — history lives in grooves"}
+  else if(topFmt&&topFmt[0]==="CD"){title="Silver Disc Aficionado";sub="Perfect sound forever — no pops, no crackle, just the music"}
+  else{title="The Omnivore";sub="A healthy appetite for sound in all its forms"}
+  return{title:title,sub:sub}}
+
+var DASH_COLORS=["#534AB7","#D35400","#1A8A8A","#993556","#185FA5","#639922","#B8860B","#A32D2D","#0F6E56","#D85A30"];
+
+function renderDashboard(a){
+  var o='<div class="dash"><div class="dash-grid">';
+  /* Archetype — full width */
+  o+='<div class="dash-sect full"><div class="dash-archetype"><div class="title">'+h(a.archetype.title)+'</div><div class="sub">'+h(a.archetype.sub)+'</div></div></div>';
+  /* Decade timeline */
+  var decs=Object.keys(a.decades).sort();
+  if(decs.length>0){
+    var maxDec=Math.max.apply(null,Object.values(a.decades));
+    o+='<div class="dash-sect"><h3>\uD83D\uDCC5 Decades</h3>';
+    decs.forEach(function(d,i){
+      var pct=Math.round(a.decades[d]/maxDec*100);
+      o+='<div class="dash-bar-row"><div class="dash-bar-label">'+d+'s</div><div class="dash-bar-track"><div class="dash-bar-fill" style="width:'+pct+'%;background:'+DASH_COLORS[i%DASH_COLORS.length]+'"></div></div><div class="dash-bar-val">'+a.decades[d]+'</div></div>'});
+    o+='</div>'}
+  /* Format donut */
+  var fmtEntries=Object.entries(a.formats).sort(function(x,y){return y[1]-x[1]}).slice(0,6);
+  var fmtTotal=fmtEntries.reduce(function(s,e){return s+e[1]},0);
+  if(fmtEntries.length>0){
+    o+='<div class="dash-sect"><h3>\uD83D\uDCBF Formats</h3><div class="dash-donut-wrap">';
+    /* CSS conic-gradient donut */
+    var grad=[],cum=0;
+    fmtEntries.forEach(function(e,i){
+      var pct=e[1]/fmtTotal*100;
+      grad.push(DASH_COLORS[i%DASH_COLORS.length]+' '+cum+'% '+(cum+pct)+'%');cum+=pct});
+    o+='<div class="dash-donut" style="background:conic-gradient('+grad.join(",")+');-webkit-mask:radial-gradient(circle,transparent 35%,#000 36%);mask:radial-gradient(circle,transparent 35%,#000 36%)"></div>';
+    o+='<div class="dash-donut-legend">';
+    fmtEntries.forEach(function(e,i){
+      o+='<span><span class="dot" style="background:'+DASH_COLORS[i%DASH_COLORS.length]+'"></span>'+h(e[0])+' ('+e[1]+')</span>'});
+    o+='</div></div></div>'}
+  /* Top artists */
+  if(a.topArtists.length>0){
+    o+='<div class="dash-sect"><h3>\uD83C\uDFA4 Top Artists</h3><div class="dash-rank">';
+    a.topArtists.forEach(function(e,i){
+      o+='<div class="dash-rank-row"><div class="dash-rank-pos" style="'+(i<3?"background:"+DASH_COLORS[i]+";color:#fff":"")+'">'+(i+1)+'</div><div class="dash-rank-name">'+h(e[0])+'</div><div class="dash-rank-cnt">'+e[1]+'</div></div>'});
+    o+='</div></div>'}
+  /* Top labels */
+  if(a.topLabels.length>0){
+    o+='<div class="dash-sect"><h3>\uD83C\uDFF7\uFE0F Top Labels</h3><div class="dash-rank">';
+    a.topLabels.forEach(function(e,i){
+      o+='<div class="dash-rank-row"><div class="dash-rank-pos" style="'+(i<3?"background:"+DASH_COLORS[3+i]+";color:#fff":"")+'">'+(i+1)+'</div><div class="dash-rank-name">'+h(e[0])+'</div><div class="dash-rank-cnt">'+e[1]+'</div></div>'});
+    o+='</div></div>'}
+  /* Year extremes */
+  if(a.oldest){
+    o+='<div class="dash-sect"><h3>\u23F3 Year Extremes</h3><div class="dash-big-row">';
+    o+='<div class="dash-big"><div class="val">'+a.oldest+'</div><div class="lbl">Oldest</div></div>';
+    o+='<div class="dash-big"><div class="val">'+a.avgYear+'</div><div class="lbl">Average</div></div>';
+    o+='<div class="dash-big"><div class="val">'+a.newest+'</div><div class="lbl">Newest</div></div>';
+    o+='</div></div>'}
+  /* Label diversity */
+  o+='<div class="dash-sect"><h3>\uD83C\uDF10 Label Diversity</h3>';
+  var divPct=Math.round(a.diversity*100);
+  var divLabel=divPct<30?"Focused":divPct<60?"Balanced":"Eclectic";
+  o+='<div style="text-align:center;font-size:22px;font-weight:800;color:var(--tx)">'+divPct+'%<span style="font-size:12px;font-weight:600;color:var(--tx2);margin-left:6px">'+divLabel+'</span></div>';
+  o+='<div class="dash-diversity"><div class="dash-div-bar"><div class="dash-div-fill" style="width:'+divPct+'%"></div></div></div>';
+  o+='<div class="dash-div-labels"><span>Focused</span><span>Eclectic</span></div>';
+  o+='</div>';
+  o+='</div></div>';
+  return o}
+
 function render(){
   if(!S.loaded&&!S.loading){
     var er=S.error?'<div class="error">'+h(S.error)+'</div>':'';
@@ -704,7 +851,11 @@ function render(){
   o+='<div class="stats"><div class="stat"><div class="stat-n">'+S.items.length+'</div><div class="stat-l">Wantlist</div></div>'+
     '<div class="stat"><div class="stat-n">'+Object.keys(artc).length+'</div><div class="stat-l">Artists</div></div>';
   if(hc)o+='<div class="stat"><div class="stat-n green">'+tf+'</div><div class="stat-l">Found</div></div>';
+  /* Dashboard pill — always available once wantlist is loaded */
+  if(!S.checking)o+='<div class="stat dash-toggle'+(S.showDash?' on':'')+'" id="bdash" style="cursor:pointer"><div class="stat-n" style="font-size:16px">\uD83D\uDCCA</div><div class="stat-l">Profile</div></div>';
   o+='</div>';
+  /* Dashboard — toggle open below stats (post-check) */
+  if(!S.checking&&S.showDash)o+='<div class="dash-fadein">'+renderDashboard(analyseWantlist(S.items))+'</div>';
 
   /* Store selector */
   o+='<div class="card"><div class="store-hdr"><div style="font-size:14px;font-weight:700">Stores to check</div>'+
@@ -751,15 +902,23 @@ function render(){
     o+='</div>'}
   o+='</div></div>';
 
+  /* Dashboard — teaser during checking, expandable on click */
+  if(S.checking){
+    var dashText=S.showDash?'\u25B2 Hide wantlist profile':'\uD83C\uDFB6 Find out more about your wantlist while your stores are being checked\u2026';
+    o+='<div class="dash-teaser" id="dashwrap">';
+    o+='<button class="dash-nudge'+(S.showDash?' on':'')+'" id="bdash">'+dashText+'</button>';
+    o+='<div class="dash-reveal'+(S.showDash?' open':'')+'" id="dashpanel">'+renderDashboard(analyseWantlist(S.items))+'</div>';
+    o+='</div>'}
+
   /* Store filter chips — below the check card */
   if(hc){
     var oosCount=0;S.items.forEach(function(it){var st=getItemStores(it);if(st.length>0&&!isInStockAnywhere(it))oosCount++});
     o+='<div class="store-stats">';
-    o+='<div class="store-stat'+(S.onlyFound&&!S.filterStore?' on':'')+'" data-sf="all" style="cursor:pointer"><span style="font-size:11px">All found</span> <span class="cnt">'+tf+'</span></div>';
+    o+='<div class="store-stat'+(S.onlyFound&&!hasFilterStores()?' on':'')+'" data-sf="all" style="cursor:pointer"><span style="font-size:11px">All found</span> <span class="cnt">'+tf+'</span></div>';
     if(oosCount>0)o+='<div class="store-stat'+(S.hideOos?' on':'')+'" id="boos" style="cursor:pointer"><span style="font-size:11px">In stock only</span></div>';
     CHECKABLE.forEach(function(s){if(!S.results[s.id])return;var fc=storeFoundCount(s.id);
       var ini=s.name.substring(0,2).toUpperCase();
-      if(fc>0)o+='<div class="store-stat'+(S.filterStore===s.id?' on':'')+'" data-sf="'+s.id+'" style="cursor:pointer">'+(s.logo?'<div class="slogo"><img src="'+h(s.logo)+'" alt="" data-color="'+s.color+'" data-ini="'+ini+'" onerror="repStoreLogo(this)"></div>':'<div class="slogo" style="background:'+s.color+';border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:7px;font-weight:700">'+ini+'</div>')+h(s.short)+' <span class="cnt">'+fc+'</span></div>'});
+      if(fc>0)o+='<div class="store-stat'+(S.filterStores[s.id]?' on':'')+'" data-sf="'+s.id+'" style="cursor:pointer">'+(s.logo?'<div class="slogo"><img src="'+h(s.logo)+'" alt="" data-color="'+s.color+'" data-ini="'+ini+'" onerror="repStoreLogo(this)"></div>':'<div class="slogo" style="background:'+s.color+';border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:7px;font-weight:700">'+ini+'</div>')+h(s.short)+' <span class="cnt">'+fc+'</span></div>'});
     o+='</div>'}
 
   /* Toolbar */
@@ -785,8 +944,15 @@ function render(){
   root.innerHTML=o;
 
   /* Events */
-  $("brs").addEventListener("click",function(){S.loaded=false;S.items=[];S.error=null;S.results={};S.invCache={};render()});
+  $("brs").addEventListener("click",function(){S.loaded=false;S.items=[];S.error=null;S.results={};S.invCache={};S.showDash=false;render()});
   $("brl").addEventListener("click",function(){if(S.user)fetchWL()});
+  var bdash=$("bdash");if(bdash)bdash.addEventListener("click",function(){
+    S.showDash=!S.showDash;
+    var panel=$("dashpanel");
+    if(panel){/* During checking — animate via CSS, no re-render */
+      if(S.showDash){panel.classList.add("open");bdash.classList.add("on");bdash.textContent="\u25B2 Hide wantlist profile"}
+      else{panel.classList.remove("open");bdash.classList.remove("on");bdash.textContent="\uD83C\uDFB6 Find out more about your wantlist while your stores are being checked\u2026"}}
+    else render()});
   var isrch=$("isrch");if(isrch)isrch.addEventListener("input",function(e){S.search=e.target.value;S.vis=PER_PAGE;render();var el=$("isrch");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}});
   document.querySelectorAll("[data-f]").forEach(function(b){b.addEventListener("click",function(){S.format=b.getAttribute("data-f");S.vis=PER_PAGE;render()})});
   document.querySelectorAll("[data-v]").forEach(function(b){b.addEventListener("click",function(){S.view=b.getAttribute("data-v");render()})});
@@ -796,9 +962,11 @@ function render(){
   document.querySelectorAll("[data-ct]").forEach(function(b){b.addEventListener("click",function(){var c=b.getAttribute("data-ct");if(c==="porto")S.cityPorto=!S.cityPorto;else S.cityLisbon=!S.cityLisbon;if(!S.cityPorto&&!S.cityLisbon){if(c==="porto")S.cityLisbon=true;else S.cityPorto=true}render()})});
   document.querySelectorAll("[data-sf]").forEach(function(el){el.addEventListener("click",function(){
     var sf=el.getAttribute("data-sf");
-    if(sf==="all"){S.filterStore=null;S.onlyFound=!S.onlyFound}
-    else if(S.filterStore===sf){S.filterStore=null;S.onlyFound=false}
-    else{S.filterStore=sf;S.onlyFound=true}
+    if(sf==="all"){S.filterStores={};S.onlyFound=!S.onlyFound}
+    else{
+      if(S.filterStores[sf])delete S.filterStores[sf];
+      else S.filterStores[sf]=true;
+      S.onlyFound=hasFilterStores()||S.onlyFound}
     S.vis=PER_PAGE;render()})});
   var bmo=$("bmo");if(bmo)bmo.addEventListener("click",function(){S.vis+=PER_PAGE;render()});
   var boos=$("boos");if(boos)boos.addEventListener("click",function(){S.hideOos=!S.hideOos;S.onlyFound=S.hideOos||S.onlyFound;S.vis=PER_PAGE;render()});
