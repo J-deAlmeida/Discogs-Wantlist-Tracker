@@ -153,7 +153,7 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
 .more{text-align:center;padding:20px}
 .vinyl{opacity:.15}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-@keyframes pulse{0%,100%{width:20%;opacity:.4}50%{width:80%;opacity:.8}}
+@keyframes indeterminate{0%{transform:translateX(-100%)}100%{transform:translateX(400%)}}
 .spinner{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;animation:spin 1.8s linear infinite}
 .spinner svg{display:block}
 .phase-label{font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
@@ -162,6 +162,11 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
   .v-list .it{flex-wrap:wrap}
   .store-grid{grid-template-columns:1fr 1fr}
 }
+.src-tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid var(--bd)}
+.src-tab{background:none;border:none;padding:10px 16px;font-size:13px;font-weight:600;color:var(--tx3);cursor:pointer;font-family:inherit;position:relative;transition:color .15s}
+.src-tab:hover{color:var(--tx2)}
+.src-tab.on{color:var(--tx)}
+.src-tab.on::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:2px;background:var(--acc)}
 </style>
 </head>
 <body>
@@ -169,8 +174,8 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
   <button class="dm-toggle" id="dmtog" title="Toggle dark mode">&#9790;</button>
   <div class="header">
     <div class="logo">Wantlist <span>&times;</span> Tracker</div>
-    <div class="sub">Check your Discogs wantlist across Porto & Lisbon record stores</div>
-    <div class="ver">v0.5.6 &mdash; 2026-03-16</div>
+    <div class="sub">Check your wantlist across Porto &amp; Lisbon record stores</div>
+    <div class="ver">v0.7.7 &mdash; 2026-03-18</div>
   </div>
   <div id="root"></div>
   <div style="text-align:center;padding:40px 16px 20px;font-size:11px;color:var(--tx3)">Visit your neighborhood record stores and shop locally.<br><a href="https://github.com/J-deAlmeida/Discogs-Wantlist-Tracker/blob/main/FAQ.md" target="_blank" style="color:var(--tx3);text-decoration:underline;text-underline-offset:2px">FAQ</a> &middot; &copy; 2026 Geminus Dancing Studios. Ardazubre, Baixo Mondego.</div>
@@ -179,7 +184,6 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
 (function(){
 "use strict";
 
-var API="https://api.discogs.com";
 var WORKER="https://porto-store-proxy.jsantosdealmeida.workers.dev/";
 var PER_PAGE=60;
 var CONCURRENT=4;
@@ -197,10 +201,19 @@ function norm(s){return(s||"").toLowerCase()
   .replace(/[\u00ec-\u00ef]/g,"i").replace(/[\u00f2-\u00f6]/g,"o")
   .replace(/[\u00f9-\u00fc]/g,"u").replace(/[\u00f1]/g,"n").replace(/[\u00e7]/g,"c")
   .replace(/[^a-z0-9]/g," ").replace(/\s+/g," ").trim()}
+function artFirst(s){return(s||"").replace(/\s*\(\d+\)\s*$/,"").split(",")[0].trim()}
+function detectAndParse(text,filename){
+  var trimmed=text.trimStart();
+  if((filename||"").toLowerCase().endsWith(".xml")||trimmed.startsWith("<?xml")||trimmed.indexOf("<plist")!==-1)
+    return parseItunesXML(text);
+  /* TSV: has tabs AND first line contains an "artist" column header */
+  var firstLine=trimmed.split(/\r\n|\r|\n/)[0]||"";
+  if(firstLine.indexOf("\t")!==-1&&firstLine.toLowerCase().indexOf("artist")!==-1)
+    return parseItunesTSV(text);
+  return parseCSV(text)}
 function qry(it){
-  var a=it.artist.replace(/\s*\(\d+\)\s*$/,"").split(",")[0].trim();
   var t=it.title.replace(/[+&]/g," ").replace(/,(\d)/g,"$1").trim();
-  return a+" "+t}
+  return artFirst(it.artist)+" "+t}
 function qryTitle(it){return it.title.replace(/[+&]/g," ").replace(/,(\d)/g,"$1").trim()}
 function textMatch(body,artist,title){
   var b=norm(body),a=norm(artist),t=norm(title);
@@ -212,7 +225,7 @@ function shopifyMatch(prod,it){
   var pt=norm(prod.title||"");
   var pv=norm(prod.vendor||"");
   var ti=norm(it.title);
-  var ai=norm(it.artist.split(",")[0]);
+  var ai=norm(artFirst(it.artist));
   if(ti.length<3)return null;
   /* Title must appear in product title */
   if(pt.indexOf(ti)===-1)return null;
@@ -231,7 +244,7 @@ var CG_SEARCH_GQL='query search($term:String!,$stocked:Boolean){search(term:$ter
 /* Common Ground product match — title must appear in product, artist in product or artists list */
 function cgMatch(cgItem,it){
   var pt=norm(cgItem.data.title||"");
-  var ai=norm(it.artist.split(",")[0]);
+  var ai=norm(artFirst(it.artist));
   var ti=norm(it.title);
   /* Exact Discogs release ID match */
   if(String(cgItem.id)===it.id)return{found:true,exact:true};
@@ -251,24 +264,27 @@ function cgMatch(cgItem,it){
 
 /* ========== STORE REGISTRY ========== */
 var STORES=[
-  {id:"8mm",name:"8mm Records",short:"8mm",type:"web",color:"#D35400",city:"porto",
-   logo:"img/8mm.png",url:"https://www.8mm-records.com",defOn:true,
+  {id:"8mm",name:"8mm Records",short:"8mm",type:"graphql",color:"#D35400",city:"porto",
+   logo:"img/8mm.png",url:"https://www.8mm-records.com",defOn:true,concurrent:3,delay:400,
+   graphqlUrl:"https://www.8mm-records.com/graphql",
    map:"https://www.google.com/maps/search/8mm+Records+Rodrigues+Freitas+Porto",
-   getCheckUrl:function(it){return"https://www.8mm-records.com/release/"+it.id+"/"+slug(it.artist+"-"+it.title)},
+   /* Fast path for items with Discogs ID: release pages are SSR'd, title tag is populated */
+   getCheckUrl:function(it){if(!it.id)return null;return"https://www.8mm-records.com/release/"+it.id+"/"+slug(artFirst(it.artist)+"-"+it.title)},
    detect:function(j,it){
+     if(!j.title||j.title.length<10)return{s:"no"};
+     var l=j.title.toLowerCase();
+     if(l.startsWith("8mm records")||l==="8mm")return{s:"no"};
      var oos=/no stock|sem stock|esgotado|sold out|out of stock|indispon/i.test(j.bodyText||"");
-     if(j.title&&j.title.length>20){var l=j.title.toLowerCase();
-       if(l.indexOf("8mm records")!==0&&l.indexOf("8mm-records")!==0&&l!=="8mm")return{s:"found",oos:oos}}
-     if(j.hasBasket||j.hasPrice)return{s:"found",oos:oos};return{s:"no"}},
-   getStoreUrl:function(it){return"https://www.8mm-records.com/release/"+it.id+"/"+slug(it.artist+"-"+it.title)}},
+     return{s:"found",oos:oos}},
+   getStoreUrl:function(it){if(!it.id)return"https://www.8mm-records.com";return"https://www.8mm-records.com/release/"+it.id+"/"+slug(artFirst(it.artist)+"-"+it.title)}},
 
   {id:"materia",name:"Matéria Prima",short:"Matéria",type:"web-search",color:"#0F6E56",city:"porto",
-   logo:"img/materia.png",url:"https://www.materiaprima.pt",defOn:true,
+   logo:"img/materia.png",url:"https://www.materiaprima.pt",defOn:true,concurrent:2,delay:600,
    map:"https://www.google.com/maps/search/Materia+Prima+Miguel+Bombarda+Porto",
    getCheckUrl:function(it){return"https://www.materiaprima.pt/lista.php?search="+encodeURIComponent(qryTitle(it))},
    detect:function(j,it){
      if(!j.bodyText)return{s:"err"};
-     var b=norm(j.bodyText),ti=norm(it.title),ai=norm(it.artist.split(",")[0]);
+     var b=norm(j.bodyText),ti=norm(it.title),ai=norm(artFirst(it.artist));
      if(ti.length<3)return{s:"no"};
      if(b.indexOf(ti)!==-1&&(ai.length<3||b.indexOf(ai)!==-1)){
        var oos=/no stock|sem stock|esgotado|sold out|out of stock|indispon/i.test(j.bodyText);
@@ -289,25 +305,25 @@ var STORES=[
      if(ti.length>3&&pt.indexOf(ti)!==-1)return{s:"found"};
      var rMatch=j.bodyText.match(/(\d+)\s*result/i);
      if(rMatch&&parseInt(rMatch[1])===0)return{s:"no"};
-     if(rMatch&&parseInt(rMatch[1])>0&&textMatch(j.bodyText,it.artist,it.title))return{s:"found"};
+     if(rMatch&&parseInt(rMatch[1])>0&&textMatch(j.bodyText,artFirst(it.artist),it.title))return{s:"found"};
      return{s:"no"}},
    getStoreUrl:function(it){return"https://portocalling.com/en/?s="+encodeURIComponent(qry(it))+"&post_type=product"}},
 
   {id:"socorro",name:"Socorro",short:"Socorro",type:"web-search",color:"#A32D2D",city:"porto",
    logo:"img/socorro.png",url:"https://socorro.pt",defOn:true,
    map:"https://www.google.com/maps/search/Socorro+Record+Store+Porto",
-   getCheckUrl:function(it){var s=slug(it.artist.split(",")[0]+"-"+it.title);return"https://socorro.pt/en/vinyl/"+s},
+   getCheckUrl:function(it){var s=slug(artFirst(it.artist)+"-"+it.title);return"https://socorro.pt/en/vinyl/"+s},
    detect:function(j,it){
      if(!j.bodyText)return{s:"err"};
      if(j.status===404||j.status===301)return{s:"no"};
      var pt=norm(j.title||""),ti=norm(it.title),bl=norm(j.bodyText);
      var found=false;
      if(ti.length>3&&pt.indexOf(ti)!==-1)found=true;
-     if(!found&&textMatch(j.bodyText,it.artist.split(",")[0],it.title)&&j.hasPrice)found=true;
+     if(!found&&textMatch(j.bodyText,artFirst(it.artist),it.title)&&j.hasPrice)found=true;
      if(!found)return{s:"no"};
      var oos=/no stock|sem stock|esgotado|sold out|out of stock|indispon/i.test(j.bodyText);
      return{s:"found",oos:oos}},
-   getStoreUrl:function(it){var s=slug(it.artist.split(",")[0]+"-"+it.title);return"https://socorro.pt/en/vinyl/"+s}},
+   getStoreUrl:function(it){var s=slug(artFirst(it.artist)+"-"+it.title);return"https://socorro.pt/en/vinyl/"+s}},
 
   {id:"musicriots",name:"Music and Riots",short:"M&R",type:"web-search",color:"#854F0B",city:"porto",
    logo:"img/musicriots.png",url:"https://shopmusicandriots.com",defOn:true,
@@ -351,7 +367,7 @@ var STORES=[
    getCheckUrl:function(it){return"https://louielouie.pt/en_us/catalogsearch/result/?q="+encodeURIComponent(qryTitle(it))},
    detect:function(j,it){
      if(!j.bodyText)return{s:"err"};
-     var b=norm(j.bodyText),ti=norm(it.title),ai=norm(it.artist.split(",")[0]);
+     var b=norm(j.bodyText),ti=norm(it.title),ai=norm(artFirst(it.artist));
      /* Parse Magento item count */
      var itemMatch=j.bodyText.match(/(\d+)\s*Items?\b/i);
      var itemCount=itemMatch?parseInt(itemMatch[1]):0;
@@ -371,7 +387,7 @@ var STORES=[
    getEndpoint:function(it){return WORKER+"?vinyldisc="+encodeURIComponent(qryTitle(it))},
    detect:function(j,it){
      if(!j.json||!Array.isArray(j.json)||j.json.length===0)return{s:"no"};
-     var ti=norm(it.title),ai=norm(it.artist.split(",")[0]);
+     var ti=norm(it.title),ai=norm(artFirst(it.artist));
      if(ti.length<3)return{s:"no"};
      for(var i=0;i<j.json.length;i++){
        var r=j.json[i],pt=norm(r.titulo||""),pa=norm(r.artista||"");
@@ -425,10 +441,18 @@ var S={items:[],loaded:false,loading:false,error:null,progress:null,
   /* results: { storeId: { releaseId: {s:"found"|"no"|"err", oos:bool} } } */
   results:{},invCache:{},onlyFound:false,filterStores:{},hideOos:false,
   cityPorto:true,cityLisbon:true,
-  user:"",token:""};
+  user:"",
+  source:"discogs",mbUser:"",mbCollections:[],mbCollectionIds:[],mbLoading:false,mbError:null,
+  csvText:"",csvPreview:null,loadingLabel:"",
+  addingSource:false,sources:[]};
 CHECKABLE.forEach(function(s){S.selectedStores[s.id]=!!s.defOn});
-try{S.user=sessionStorage.getItem("dg_u")||"";S.token=sessionStorage.getItem("dg_t")||""}catch(e){}
-function saveCreds(){try{sessionStorage.setItem("dg_u",S.user);sessionStorage.setItem("dg_t",S.token)}catch(e){}}
+var _ks=0;
+function isDuplicate(it){
+  if(it.id)return S.items.some(function(x){return x.id===it.id});
+  var na=norm(it.artist),nt=norm(it.title);
+  return S.items.some(function(x){return norm(x.artist)===na&&norm(x.title)===nt})}
+try{S.user=sessionStorage.getItem("dg_u")||"";S.mbUser=sessionStorage.getItem("mb_u")||""}catch(e){}
+function saveCreds(){try{sessionStorage.setItem("dg_u",S.user);sessionStorage.setItem("mb_u",S.mbUser)}catch(e){}}
 
 /* ========== HELPERS ========== */
 function h(s){var d=document.createElement("div");d.textContent=s||"";return d.innerHTML}
@@ -437,28 +461,210 @@ function $(id){return document.getElementById(id)}
 function svg(sz){sz=sz||36;return'<svg class="vinyl" width="'+sz+'" height="'+sz+'" viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" stroke="'+(document.body.classList.contains("dark")?"#555":"#aaa")+'" stroke-width="1.5" fill="none"/><circle cx="24" cy="24" r="8" stroke="'+(document.body.classList.contains("dark")?"#555":"#aaa")+'" stroke-width="1.5" fill="none"/><circle cx="24" cy="24" r="2" fill="'+(document.body.classList.contains("dark")?"#666":"#bbb")+'"/></svg>'}
 function spinSvg(){return'<span class="spinner"><svg width="22" height="22" viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="var(--tx)" opacity=".15"/><circle cx="24" cy="24" r="20" fill="none" stroke="var(--tx)" stroke-width=".5" opacity=".15"/><circle cx="24" cy="24" r="16" fill="none" stroke="var(--tx)" stroke-width=".4" opacity=".1"/><circle cx="24" cy="24" r="12" fill="none" stroke="var(--tx)" stroke-width=".4" opacity=".1"/><circle cx="24" cy="24" r="7" fill="var(--grn)"/><circle cx="24" cy="24" r="2.5" fill="var(--bg2)"/><circle cx="24" cy="24" r="1" fill="var(--tx)" opacity=".3"/><circle cx="18" cy="14" r="3" fill="var(--grn)" opacity=".5"/></svg></span>'}
 
+/* ========== CSV PARSER ========== */
+/* ========== ITUNES / APPLE MUSIC XML PARSER ========== */
+function parseItunesXML(xmlText){
+  try{
+    var parser=new DOMParser();
+    var doc=parser.parseFromString(xmlText,"text/xml");
+    if(doc.querySelector("parsererror"))return{items:[],error:"Invalid XML file.",format:"itunes"};
+    /* Helper: <dict> element → plain JS object. Nested <dict> values kept as elements. */
+    function pld(dictEl){
+      var obj={},ch=dictEl.children,i=0;
+      while(i<ch.length){
+        if(ch[i].tagName==="key"&&i+1<ch.length){
+          var k=ch[i].textContent,v=ch[i+1];
+          if(v.tagName==="dict")obj[k]=v;
+          else if(v.tagName==="true")obj[k]=true;
+          else if(v.tagName==="false")obj[k]=false;
+          else obj[k]=v.textContent;
+          i+=2}else{i++}}
+      return obj}
+    var rootDict=doc.querySelector("plist > dict");
+    if(!rootDict)return{items:[],error:"Not a valid iTunes/Music library file.",format:"itunes"};
+    var root=pld(rootDict);
+    if(!root["Tracks"])return{items:[],error:"No Tracks found. Export your library from Music \u2192 File \u2192 Library \u2192 Export Library\u2026",format:"itunes"};
+    var tracksDict=root["Tracks"];
+    var albums={};
+    var ch=tracksDict.children;
+    for(var i=0;i<ch.length;i++){
+      if(ch[i].tagName!=="dict")continue;
+      var t=pld(ch[i]);
+      if(!t["Album"])continue;
+      if(t["Podcast"]===true||t["Movie"]===true||t["TV Show"]===true||t["Audiobook"]===true)continue;
+      var aa=t["Album Artist"]||t["Artist"]||"Unknown";
+      var al=t["Album"];
+      var key=aa.toLowerCase()+"\x00"+al.toLowerCase();
+      if(!albums[key])albums[key]={artist:aa,title:al,year:t["Year"]||""}}
+    var items=Object.values(albums).map(function(a){
+      return{id:"",_key:"csv_"+(++_ks),source:"itunes",artist:a.artist,title:a.title,year:a.year,label:"",format:"",catno:"",thumb:""}});
+    if(!items.length)return{items:[],error:"No albums found. Make sure to export a Music library (not a playlist).",format:"itunes"};
+    return{items:items,error:null,format:"itunes"}
+  }catch(e){return{items:[],error:"Parse failed: "+e.message,format:"itunes"}}}
+
+/* ========== ITUNES / APPLE MUSIC PLAYLIST TSV PARSER ========== */
+/* Handles the tab-separated file produced by File → Library → Export Playlist */
+function parseItunesTSV(text){
+  try{
+    var lines=text.split(/\r\n|\r|\n/).filter(function(l){return l.trim()});
+    if(lines.length<2)return{items:[],error:"Need at least a header row and one data row.",format:"itunes"};
+    var headers=lines[0].split("\t").map(function(h){return h.trim().toLowerCase()});
+    function col(){for(var i=0;i<arguments.length;i++){var x=headers.indexOf(arguments[i].toLowerCase());if(x!==-1)return x}return-1}
+    var cArtist=col("artist"),cAlbum=col("album"),cYear=col("year");
+    if(cArtist===-1)return{items:[],error:'No "Artist" column found. Is this an iTunes/Music playlist export?',format:"itunes"};
+    if(cAlbum===-1)return{items:[],error:'No "Album" column found. Is this an iTunes/Music playlist export?',format:"itunes"};
+    var albums={};
+    for(var i=1;i<lines.length;i++){
+      var fields=lines[i].split("\t");
+      var artist=(fields[cArtist]||"").trim();
+      var album=(fields[cAlbum]||"").trim();
+      if(!album||!artist)continue;
+      var key=artist.toLowerCase()+"\x00"+album.toLowerCase();
+      if(!albums[key])albums[key]={artist:artist,title:album,year:cYear!==-1?(fields[cYear]||"").trim():""}}
+    var items=Object.values(albums).map(function(a){
+      return{id:"",_key:"csv_"+(++_ks),source:"itunes",artist:a.artist,title:a.title,year:a.year,label:"",format:"",catno:"",thumb:""}});
+    if(!items.length)return{items:[],error:"No albums found. Make sure each track has Artist and Album fields.",format:"itunes"};
+    return{items:items,error:null,format:"itunes"}
+  }catch(e){return{items:[],error:"Parse failed: "+e.message,format:"itunes"}}}
+
+function parseCSV(text){
+  text=(text||"").trim();
+  if(!text)return{items:[],error:"No content to parse."};
+  var lines=text.split(/\r\n|\r|\n/).filter(function(l){return l.trim()});
+  if(lines.length<2)return{items:[],error:"Need at least a header row and one data row."};
+  var semi=(lines[0].match(/;/g)||[]).length,com=(lines[0].match(/,/g)||[]).length;
+  var delim=semi>com?";":","
+  function parseRow(line){
+    var fields=[],cur="",inQ=false;
+    for(var i=0;i<line.length;i++){var c=line[i];
+      if(c==='"'){inQ=!inQ}else if(c===delim&&!inQ){fields.push(cur.trim());cur=""}else{cur+=c}}
+    fields.push(cur.trim());return fields}
+  var hd=parseRow(lines[0]).map(function(h){return h.toLowerCase().replace(/^["\s\ufeff]+|["\s]+$/g,"")});
+  function col(){for(var i=0;i<arguments.length;i++){var x=hd.indexOf(arguments[i]);if(x!==-1)return x}return-1}
+  var cArtist=col("artist","artist_name","artist name");
+  var cTitle=col("title","release_title","album");
+  var cLabel=col("label");var cYear=col("year","release_date","date");
+  var cFmt=col("format");var cCatno=col("catno","catalog#","catalogue#");
+  var cId=col("release_id","discogs_id");
+  var cFirst=col("first name","firstname");var cLast=col("last name","lastname");
+  if(cArtist===-1&&cLast!==-1)cArtist=-2;
+  if(cTitle===-1)return{items:[],error:'No title column found. Expected: "title", "release_title", or "album".'};
+  if(cArtist===-1)return{items:[],error:'No artist column found. Expected: "artist", "artist_name", or "last name".'};
+  var items=[];
+  for(var i=1;i<lines.length;i++){
+    var r=parseRow(lines[i]);
+    if(r.every(function(f){return!f.trim()}))continue;
+    var artist;
+    if(cArtist===-2){
+      var fn=cFirst!==-1?(r[cFirst]||"").replace(/^"+|"+$/g,"").trim():"";
+      var ln=cLast!==-1?(r[cLast]||"").replace(/^"+|"+$/g,"").trim():"";
+      artist=[fn,ln].filter(Boolean).join(" ")||"Unknown"
+    }else{artist=(r[cArtist]||"").replace(/^"+|"+$/g,"").trim().replace(/\s*\(\d+\)\s*$/,"")||"Unknown"}
+    var title=(r[cTitle]||"").replace(/^"+|"+$/g,"").trim();
+    if(!title)continue;
+    var id=cId!==-1?(r[cId]||"").trim():"";
+    if(id&&!/^\d+$/.test(id))id="";
+    items.push({id:id,_key:id||"csv_"+(++_ks),source:"csv",artist:artist,title:title,
+      label:cLabel!==-1?(r[cLabel]||"").trim():"",
+      catno:cCatno!==-1?(r[cCatno]||"").trim():"",
+      format:cFmt!==-1?(r[cFmt]||"").trim():"",
+      year:cYear!==-1?(r[cYear]||"").split(/[-\/]/)[0].trim():"",
+      thumb:""})}
+  if(items.length===0)return{items:[],error:"No valid rows found after parsing."};
+  return{items:items,error:null}}
+
+/* ========== MUSICBRAINZ ========== */
+async function fetchMBCollections(username){
+  S.mbLoading=true;S.mbError=null;S.mbCollections=[];render();
+  try{
+    var r=await fetch("https://musicbrainz.org/ws/2/collection?editor="+encodeURIComponent(username)+"&fmt=json",
+      {headers:{"User-Agent":"PortoWantlistTracker/4.0 (github.com/J-deAlmeida)"}});
+    if(!r.ok)throw new Error("MusicBrainz error ("+r.status+")");
+    var d=await r.json();
+    var cols=(d.collections||[]).filter(function(c){return c["entity-type"]==="release"});
+    if(cols.length===0)throw new Error("No release collections found for \u201c"+username+"\u201d");
+    S.mbCollections=cols.map(function(c){return{id:c.id,name:c.name,count:c["release-count"]||0}});
+    S.mbCollectionIds=S.mbCollections.map(function(c){return c.id})
+  }catch(e){S.mbError=e.message}
+  S.mbLoading=false;render()}
+
+async function fetchMBCollection(){
+  var colIds=S.mbCollectionIds;
+  var cols=S.mbCollections.filter(function(c){return colIds.indexOf(c.id)>=0});
+  if(!cols.length)return;
+  var merging=S.addingSource;
+  S.loading=true;S.loadingLabel="Loading collection\u2026";S.error=null;
+  if(!merging){S.items=[];S.loaded=false;S.results={};S.invCache={};S.sources=[];}
+  S.progress=null;S.checking=false;S.onlyFound=false;
+  if(!merging){S.vis=PER_PAGE;S.search="";S.format="all";S.filterStores={};}
+  S.user=S.mbUser;
+  render();
+  var all=[];
+  var grandTotal=cols.reduce(function(s,c){return s+(c.count||0)},0);
+  try{
+    for(var ci=0;ci<cols.length;ci++){
+      var col=cols[ci];
+      var colId=col.id;
+      var offset=0,total=col.count||1;
+      do{
+        var url="https://musicbrainz.org/ws/2/release?collection="+colId+"&fmt=json&limit=100&offset="+offset+"&inc=artist-credits+media";
+        var r=await fetch(url,{headers:{"User-Agent":"PortoWantlistTracker/4.0 (github.com/J-deAlmeida)"}});
+        if(!r.ok)throw new Error("MusicBrainz error ("+r.status+")");
+        var d=await r.json();
+        total=d["release-count"]||total;
+        var rels=d.releases||[];
+        all=all.concat(rels);offset+=rels.length;
+        grandTotal=cols.reduce(function(s,c,i){return s+(i<ci?c.count:i===ci?total:c.count||0)},0);
+        S.progress={ld:all.length,tot:grandTotal,pg:Math.ceil(offset/100),tp:Math.ceil(total/100)};
+        render();
+        if(offset<total||(ci<cols.length-1&&rels.length>0))await wait(1100)
+      }while(offset<total&&rels.length>0)
+    }
+    var newItems=all.map(function(rel,i){
+      var ac=rel["artist-credit"]||[];
+      var artist=ac.map(function(a){return(a.name||(a.artist&&a.artist.name)||"")+(a.joinphrase||"")}).join("").trim()||"Unknown";
+      var li=(rel["label-info"]||[])[0]||{};
+      var fmt=(rel.media||[])[0]?(rel.media[0].format||""):"";
+      return{id:"",_key:"mb_"+(rel.id||++_ks),source:"mb",artist:artist,title:rel.title||"",
+        label:li.label?li.label.name:"",catno:li["catalog-number"]||"",
+        format:fmt,year:(rel.date||"").split("-")[0],
+        thumb:rel.id?"https://coverartarchive.org/release/"+rel.id+"/front-250":""}});
+    if(merging){newItems=newItems.filter(function(it){return!isDuplicate(it)});S.items=S.items.concat(newItems)}
+    else{S.items=newItems}
+    var colNames=cols.map(function(c){return c.name}).join(", ");
+    S.sources=S.sources.concat(["MusicBrainz \u00b7 "+colNames]);
+    S.addingSource=false;S.loaded=true
+  }catch(e){S.error=e.message;S.addingSource=false}
+  S.loading=false;S.progress=null;render()}
+
 /* ========== DISCOGS WANTLIST ========== */
 async function fetchWL(){
-  S.loading=true;S.error=null;S.items=[];S.loaded=false;S.progress=null;S.vis=PER_PAGE;
-  S.search="";S.format="all";S.results={};S.checking=false;S.onlyFound=false;S.filterStores={};S.invCache={};
+  var merging=S.addingSource;
+  S.loading=true;S.loadingLabel="Fetching wantlist\u2026";S.error=null;
+  if(!merging){S.items=[];S.loaded=false;S.results={};S.invCache={};S.sources=[];}
+  S.progress=null;S.checking=false;S.onlyFound=false;
+  if(!merging){S.vis=PER_PAGE;S.search="";S.format="all";S.filterStores={};}
   render();
   var pg=1,all=[],tp=1,tot=0;
   try{
     while(pg<=tp){
-      var hd={"User-Agent":"PortoWantlistTracker/3.0"};
-      if(S.token)hd["Authorization"]="Discogs token="+S.token;
-      var url=API+"/users/"+encodeURIComponent(S.user)+"/wants?per_page=100&page="+pg+"&sort=added&sort_order=desc";
-      var r=await fetch(url,{headers:hd});
-      if(!r.ok){if(r.status===401)throw new Error("Authentication failed.");if(r.status===404)throw new Error("User not found.");if(r.status===429){await wait(2500);continue}throw new Error("Discogs error ("+r.status+")")}
-      var d=await r.json();tp=d.pagination&&d.pagination.pages||1;tot=d.pagination&&d.pagination.items||0;
+      var url=WORKER+"?wantlist="+encodeURIComponent(S.user)+"&page="+pg;
+      var r=await fetch(url);
+      var txt=await r.text();
+      if(!txt)throw new Error("Empty response from worker — redeploy the worker");
+      var d;try{d=JSON.parse(txt)}catch(e){throw new Error("Worker returned non-JSON: "+txt.slice(0,80))}
+      if(!r.ok){if(r.status===429){await wait(2500);continue}throw new Error(d.error||d.message||"Discogs error ("+r.status+")")};tp=d.pagination&&d.pagination.pages||1;tot=d.pagination&&d.pagination.items||0;
       all=all.concat(d.wants||[]);S.progress={ld:all.length,tot:tot,pg:pg,tp:tp};render();
       pg++;if(pg<=tp)await wait(1100)}
-    S.items=all.map(function(w){var b=w.basic_information||{};return{id:String(b.id||w.id||""),
+    var newItems=all.map(function(w){var b=w.basic_information||{};var kid=String(b.id||w.id||"");return{id:kid,_key:kid,source:"discogs",
       artist:(b.artists||[]).map(function(a){return a.name.replace(/ \(\d+\)$/,"")}).join(", ")||"Unknown",
       title:b.title||"",label:(b.labels||[])[0]?b.labels[0].name:"",catno:(b.labels||[])[0]?b.labels[0].catno:"",
       format:(b.formats||[]).map(function(f){return f.name}).join(", "),year:b.year||"",thumb:b.cover_image||b.thumb||""}});
-    S.loaded=true
-  }catch(e){S.error=e.message}S.loading=false;S.progress=null;render()}
+    if(merging){newItems=newItems.filter(function(it){return!isDuplicate(it)});S.items=S.items.concat(newItems)}
+    else{S.items=newItems}
+    S.sources=S.sources.concat(["Discogs \u00b7 "+S.user]);
+    S.addingSource=false;S.loaded=true
+  }catch(e){S.error=e.message;S.addingSource=false}S.loading=false;S.progress=null;render()}
 
 /* ========== DISCOGS SELLER ========== */
 /* ========== DISCOGS SELLER (via worker KV cache) ========== */
@@ -482,18 +688,20 @@ async function checkDiscogsStore(store){
   S.checkPhase="discogs";S.checkStore=store.name;S.checkProg=null;S.cskip=false;updateCheckUI();
   /* Show helpful message while waiting */
   var pt=$("chkprog");if(pt)pt.textContent="Loading inventory\u2026";
-  var pf=$("chkfill");if(pf){pf.style.width="0%";pf.style.animation="pulse 2s ease-in-out infinite"}
+  var pf=$("chkfill");if(pf){pf.style.width="25%";pf.style.animation="indeterminate 1.5s ease-in-out infinite"}
   var ids=await fetchSellerInventory(store.seller);
-  if(pf)pf.style.animation="";
+  if(pf){pf.style.animation="";pf.style.transform=""}
   if(!S.results[store.id])S.results[store.id]={};
   var fc=0;S.items.forEach(function(it){
-    if(ids.has(it.id)){S.results[store.id][it.id]={s:"found"};fc++}
-    else S.results[store.id][it.id]={s:"no"}});
+    if(ids.has(it.id)){S.results[store.id][it._key]={s:"found"};fc++}
+    else S.results[store.id][it._key]={s:"no"}});
   console.log("[discogs] "+store.name+": "+fc+" found (inv: "+ids.size+")")}
 
 /* ========== WEB CHECK ========== */
 async function checkWebItem(store,it){
-  var endpoint=store.getEndpoint?store.getEndpoint(it):WORKER+"?url="+encodeURIComponent(store.getCheckUrl(it));
+  var cu=store.getCheckUrl?store.getCheckUrl(it):null;
+  var endpoint=store.getEndpoint?store.getEndpoint(it):(cu?WORKER+"?url="+encodeURIComponent(cu):null);
+  if(!endpoint)return{s:"no"};
   try{
     var r=await fetch(endpoint);if(!r.ok)return{s:"err"};
     var j=await r.json();if(j.error)return{s:"err"};
@@ -510,12 +718,13 @@ async function checkWebStore(store){
   while(queue.length>0&&!S.cabort&&!S.cskip){
     var batch=queue.splice(0,conc);
     var results=await Promise.all(batch.map(function(it){return checkWebItem(store,it).then(function(r){return{it:it,r:r}})}));
-    results.forEach(function(o){S.results[store.id][o.it.id]=o.r});
+    results.forEach(function(o){S.results[store.id][o.it._key]=o.r});
     done+=batch.length;
-    var fc=0;Object.values(S.results[store.id]).forEach(function(v){if(v.s==="found")fc++});
-    S.checkProg={done:done,tot:tot,found:fc};
-    var pt=$("chkprog");if(pt)pt.textContent=done+"/"+tot+" \u00b7 "+fc+" found";
-    var pf=$("chkfill");if(pf)pf.style.width=(done/Math.max(tot,1)*100)+"%";
+    var fc=0,errc=0;Object.values(S.results[store.id]).forEach(function(v){if(v.s==="found")fc++;else if(v.s==="err")errc++});
+    S.checkProg={done:done,tot:tot,found:fc,errs:errc};
+    var pct=Math.round(done/Math.max(tot,1)*100);
+    var pt=$("chkprog");if(pt)pt.textContent=pct+"% \u00b7 "+fc+" found"+(errc?" \u00b7 \u26a0\ufe0f "+errc+" errors":"");
+    var pf=$("chkfill");if(pf)pf.style.width=pct+"%";
     if(queue.length>0&&!S.cabort&&!S.cskip)await wait(delay)}
   if(S.cskip)console.log("[web] Skipped "+store.name)}
 
@@ -523,12 +732,34 @@ async function checkWebStore(store){
 async function checkGraphQLStore(store){
   S.checkPhase="web";S.checkStore=store.name;S.cskip=false;
   if(!S.results[store.id])S.results[store.id]={};
-  var queue=S.items.slice(),done=0,tot=S.items.length;
-  var conc=store.concurrent||3;
-  var dly=store.delay||700;
+  var allItems=S.items.slice(),done=0,tot=allItems.length;
+  var conc=store.concurrent||3,dly=store.delay||700;
   S.checkProg={done:0,tot:tot,found:0};updateCheckUI();
-  while(queue.length>0&&!S.cabort&&!S.cskip){
-    var batch=queue.splice(0,conc);
+
+  /* If store has a fast URL check (getCheckUrl+detect), route ID items through it.
+     Items without a Discogs ID always fall back to GraphQL text search. */
+  var idQueue=store.getCheckUrl?allItems.filter(function(it){return!!it.id}):[];
+  var gqlQueue=store.getCheckUrl?allItems.filter(function(it){return!it.id}):allItems;
+
+  function cgProg(){
+    var fc=0;Object.values(S.results[store.id]).forEach(function(v){if(v.s==="found")fc++});
+    S.checkProg={done:done,tot:tot,found:fc};
+    var pct=Math.round(done/Math.max(tot,1)*100);
+    var pt=$("chkprog");if(pt)pt.textContent=store.short+": "+pct+"% \u00b7 "+fc+" found";
+    var pf=$("chkfill");if(pf)pf.style.width=pct+"%"}
+
+  /* Fast path: direct URL check via worker for items with Discogs ID */
+  while(idQueue.length>0&&!S.cabort&&!S.cskip){
+    var batch=idQueue.splice(0,conc);
+    var results=await Promise.all(batch.map(function(it){
+      return checkWebItem(store,it).then(function(r){return{it:it,r:r}})}));
+    results.forEach(function(o){S.results[store.id][o.it._key]=o.r});
+    done+=batch.length;cgProg();
+    if(idQueue.length>0&&!S.cabort&&!S.cskip)await wait(dly)}
+
+  /* GraphQL text search for items without a Discogs ID */
+  while(gqlQueue.length>0&&!S.cabort&&!S.cskip){
+    var batch=gqlQueue.splice(0,conc);
     var results=await Promise.all(batch.map(function(it){
       return fetch(store.graphqlUrl,{
         method:"POST",
@@ -547,14 +778,9 @@ async function checkGraphQLStore(store){
             return{it:it,r:{s:"found",oos:!hasStock,storeUrl:storeUrl,exact:!!m.exact}}}}
         return{it:it,r:{s:"no"}}
       }).catch(function(){return{it:it,r:{s:"err"}}})}));
-    results.forEach(function(o){S.results[store.id][o.it.id]=o.r});
-    done+=batch.length;
-    var fc=0;Object.values(S.results[store.id]).forEach(function(v){if(v.s==="found")fc++});
-    S.checkProg={done:done,tot:tot,found:fc};
-    /* Include store short name — multiple graphql stores may run in parallel */
-    var pt=$("chkprog");if(pt)pt.textContent=store.short+": "+done+"/"+tot+" \u00b7 "+fc+" found";
-    var pf=$("chkfill");if(pf)pf.style.width=(done/Math.max(tot,1)*100)+"%";
-    if(queue.length>0&&!S.cabort&&!S.cskip)await wait(dly)}
+    results.forEach(function(o){S.results[store.id][o.it._key]=o.r});
+    done+=batch.length;cgProg();
+    if(gqlQueue.length>0&&!S.cabort&&!S.cskip)await wait(dly)}
   if(S.cskip)console.log("[graphql] Skipped "+store.name)}
 
 /* ========== CHECK ALL ========== */
@@ -583,14 +809,32 @@ function updateCheckUI(){
 
 /* ========== RESULT HELPERS ========== */
 function getItemStores(it){
-  var found=[];STORES.forEach(function(s){if(S.results[s.id]&&S.results[s.id][it.id]&&S.results[s.id][it.id].s==="found")found.push(s)});return found}
-function isOos(it,sid){var r=S.results[sid]&&S.results[sid][it.id];return r&&r.oos}
+  var found=[];STORES.forEach(function(s){if(S.results[s.id]&&S.results[s.id][it._key]&&S.results[s.id][it._key].s==="found")found.push(s)});return found}
+function isOos(it,sid){var r=S.results[sid]&&S.results[sid][it._key];return r&&r.oos}
+function csvCell(v){v=String(v||"");return v.indexOf(",")!==-1||v.indexOf('"')!==-1||v.indexOf("\n")!==-1?'"'+v.replace(/"/g,'""')+'"':v}
+function exportCSV(){
+  var checkedStores=CHECKABLE.filter(function(s){return S.results[s.id]});
+  var header=["Artist","Title","Year","Label","Format","Source"].concat(checkedStores.map(function(s){return s.name}));
+  var rows=[header.map(csvCell).join(",")];
+  S.items.forEach(function(it){
+    var storeVals=checkedStores.map(function(s){
+      var r=S.results[s.id]&&S.results[s.id][it._key];
+      return r&&r.s==="found"?(r.oos?"OOS":"✓"):"—"});
+    var row=[it.artist,it.title,it.year,it.label,it.format,it.source||""].concat(storeVals);
+    rows.push(row.map(csvCell).join(","))});
+  var blob=new Blob(["\uFEFF"+rows.join("\r\n")],{type:"text/csv;charset=utf-8;"});
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="wantlist-"+new Date().toISOString().slice(0,10)+".csv";
+  a.click();URL.revokeObjectURL(a.href)}
+
 function totalFound(){
   var ids={};STORES.forEach(function(s){if(!S.results[s.id])return;
-    Object.keys(S.results[s.id]).forEach(function(k){if(S.results[s.id][k].s==="found")ids[k]=true})});return Object.keys(ids).length}
-function storeFoundCount(sid){if(!S.results[sid])return 0;var c=0;Object.values(S.results[sid]).forEach(function(v){if(v.s==="found")c++});return c}
+    Object.keys(S.results[s.id]).forEach(function(k){var r=S.results[s.id][k];if(r.s==="found"&&(!S.hideOos||!r.oos))ids[k]=true})});return Object.keys(ids).length}
+function storeFoundCount(sid){if(!S.results[sid])return 0;var c=0;Object.values(S.results[sid]).forEach(function(v){if(v.s==="found"&&(!S.hideOos||!v.oos))c++});return c}
+function storeErrCount(sid){if(!S.results[sid])return 0;var c=0;Object.values(S.results[sid]).forEach(function(v){if(v.s==="err")c++});return c}
 function hasAnyResults(){return Object.keys(S.results).length>0}
-function isFoundAt(it,sid){return S.results[sid]&&S.results[sid][it.id]&&S.results[sid][it.id].s==="found"}
+function isFoundAt(it,sid){return S.results[sid]&&S.results[sid][it._key]&&S.results[sid][it._key].s==="found"}
 function isInStockAnywhere(it){
   var stores=getItemStores(it);
   for(var i=0;i<stores.length;i++){if(!isOos(it,stores[i].id))return true}
@@ -616,6 +860,92 @@ function filtered(){
     var t=(it.artist+" "+it.title+" "+it.label+" "+it.catno).toLowerCase();
     return(!q||t.indexOf(q)!==-1)&&(f==="all"||it.format.toLowerCase().indexOf(f.toLowerCase())!==-1)&&(!S.onlyFound||getItemStores(it).length>0)&&matchesStoreFilter(it)&&(!S.hideOos||isInStockAnywhere(it))})}
 
+/* ========== LOGIN CARD ========== */
+function renderLoginCard(){
+  var er=S.error?'<div class="error">'+h(S.error)+'</div>':'';
+  var tabs=
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">'+
+    '<div style="font-size:15px;font-weight:700">'+(S.addingSource?"Add to Wantlist":"Your Wantlist")+'</div>'+
+    (S.addingSource?'<button class="btn-sec btn-sm" id="baddcancel">\u2190 Back</button>':'')+
+    '</div>'+
+    '<div class="src-tabs">'+
+    '<button class="src-tab'+(S.source==="discogs"?" on":"")+'" data-src="discogs">Discogs</button>'+
+    '<button class="src-tab'+(S.source==="mb"?" on":"")+'" data-src="mb">MusicBrainz</button>'+
+    '<button class="src-tab'+(S.source==="csv"?" on":"")+'" data-src="csv">File Import</button>'+
+    '</div>';
+  var body='';
+  if(S.source==="discogs"){
+    body=
+      '<div class="help" style="margin-bottom:12px">Load your wantlist from Discogs. Items are matched by release ID \u2014 the most accurate method, and the only one that works for Discogs seller stores.</div>'+
+      '<div><label for="iu">Discogs Username</label>'+
+      '<input class="inp" type="text" id="iu" placeholder="your_username" value="'+h(S.user)+'" autocomplete="off">'+
+      '</div><div class="btn-row"><button class="btn" id="bgo">Fetch My Wantlist</button></div>'
+  }else if(S.source==="mb"){
+    if(S.mbError)body+='<div class="error" style="margin-bottom:12px">'+h(S.mbError)+'</div>';
+    if(S.mbLoading){
+      body+='<div style="display:flex;align-items:center;gap:10px;padding:12px 0;color:var(--tx2);font-size:13px">'+spinSvg()+' Loading collections\u2026</div>'
+    }else if(S.mbCollections.length===0){
+      body+=
+        '<div class="help" style="margin-bottom:12px">Use your public MusicBrainz collection. No account sign-in needed \u2014 just your username. Stores are matched by title search.</div>'+
+        '<div><label for="imu">MusicBrainz Username</label>'+
+        '<input class="inp" type="text" id="imu" placeholder="your_username" value="'+h(S.mbUser)+'" autocomplete="off">'+
+        '</div>'+
+        '<div class="btn-row"><button class="btn" id="bmbgo">Find Collections</button></div>'
+    }else{
+      body+=
+        '<div style="margin-bottom:12px"><label for="imu">MusicBrainz Username</label>'+
+        '<input class="inp" type="text" id="imu" value="'+h(S.mbUser)+'" autocomplete="off"></div>'+
+        '<div><label>Collections</label>'+
+        '<div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">';
+      S.mbCollections.forEach(function(c){
+        var chk=S.mbCollectionIds.indexOf(c.id)>=0;
+        body+='<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">'+
+          '<input type="checkbox" class="mbcol-chk" value="'+h(c.id)+'"'+(chk?' checked':'')+' style="width:15px;height:15px;cursor:pointer">'+
+          h(c.name)+' <span style="color:var(--tx3)">('+c.count+' releases)</span></label>'});
+      body+='</div></div>'+
+        '<div class="btn-row">'+
+        '<button class="btn-green" id="bmbload">Load Selected</button>'+
+        '<button class="btn-sec btn-sm" id="bmbback">\u2190 Change user</button>'+
+        '</div>'
+    }
+  }else{
+    if(S.csvPreview&&S.csvPreview.error)body+='<div class="error" style="margin-bottom:12px">'+h(S.csvPreview.error)+'</div>';
+    if(S.csvPreview&&!S.csvPreview.error&&S.csvPreview.items.length>0){
+      var arts={};S.csvPreview.items.forEach(function(i){arts[i.artist]=true});
+      var srcFmt=S.csvPreview.format==="itunes"?"iTunes Library":"CSV";
+      body+='<div style="font-size:13px;font-weight:700;margin-bottom:6px">'+srcFmt+': found '+S.csvPreview.items.length+' albums from '+Object.keys(arts).length+' artists</div>';
+      body+='<div style="font-size:12px;color:var(--tx3);line-height:1.8;margin-bottom:12px">';
+      S.csvPreview.items.slice(0,5).forEach(function(i){
+        body+=h(i.artist)+' \u2014 <em>'+h(i.title)+'</em>'+(i.format?' ('+h(i.format)+')':'')+'<br>'});
+      if(S.csvPreview.items.length>5)body+='<span>and '+(S.csvPreview.items.length-5)+' more\u2026</span>';
+      body+='</div>'+
+        '<div class="btn-row">'+
+        '<button class="btn-green" id="bcsvload">Load these items \u2192</button>'+
+        '<button class="btn-sec btn-sm" id="bcsvback">\u2190 Edit</button>'+
+        '</div>'
+    }else{
+      body+=
+        '<div class="help" style="margin-bottom:12px">Upload a <strong>Discogs CSV export</strong>, any CSV with artist &amp; title columns, an <strong>iTunes/Music Library.xml</strong> (File \u2192 Library \u2192 Export Library), or an <strong>iTunes/Music playlist export</strong> (File \u2192 Library \u2192 Export Playlist). Stores are matched by title search.</div>'+
+        '<div><label for="icsv">Paste CSV or upload a file</label>'+
+        '<textarea class="inp" id="icsv" rows="5" placeholder="artist,title&#10;Aphex Twin,Selected Ambient Works 85-92&#10;Burial,Untrue" style="resize:vertical;min-height:90px">'+h(S.csvText)+'</textarea></div>'+
+        '<div class="btn-row">'+
+        '<label class="btn-sec" for="icsv-file" style="cursor:pointer;display:inline-flex;align-items:center">Upload file</label>'+
+        '<input type="file" id="icsv-file" accept=".csv,.txt,.xml" style="display:none">'+
+        '<button class="btn-sec" id="bcsvparse">Parse \u2192</button>'+
+        '</div>'
+    }
+  }
+  var howto=S.addingSource?'':
+    '<div class="card howto"><strong>How it works</strong><br>'+
+    '1. Load your wantlist \u2014 from Discogs, a MusicBrainz collection, a CSV file, or an iTunes/Apple Music library export<br>'+
+    '2. Select which Porto and Lisbon stores to check<br>'+
+    '3. Found items link directly to each store\u2019s listing'+
+    '<div class="note" style="margin-top:16px">\uD83D\uDD12 Everything runs in your browser. Credentials are stored only in your session.</div>'+
+    '<div class="note">\uD83D\uDCBF Large wantlists (100+ items) may take a few minutes per store. You can skip slow stores anytime.</div>'+
+    '<div class="note" style="margin-top:8px">\u26A0\uFE0F Discogs seller stores (Bunker, Circus, Piranha) require a Discogs release ID \u2014 skipped automatically for MusicBrainz, CSV and iTunes sources.</div>'+
+    '<div class="note" style="margin-top:12px;font-style:italic;color:var(--tx2)">Visit your neighborhood record stores and shop locally.</div></div>';
+  return er+'<div class="card">'+tabs+body+'</div>'+howto}
+
 /* ========== RENDER ========== */
 var IG='<svg viewBox="0 0 16 16"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>';
 var IL='<svg viewBox="0 0 16 16"><rect x="1" y="2" width="14" height="3" rx="1"/><rect x="1" y="7" width="14" height="3" rx="1"/><rect x="1" y="12" width="14" height="3" rx="1"/></svg>';
@@ -634,7 +964,7 @@ function isFormatUncertain(it,store){
   if(store.type==="web-search")return it.format.toLowerCase().indexOf("vinyl")===-1;
   /* GraphQL stores: if match was exact (same release ID), format is certain */
   if(store.type==="graphql"){
-    var r=S.results[store.id]&&S.results[store.id][it.id];
+    var r=S.results[store.id]&&S.results[store.id][it._key];
     if(r&&r.exact)return false;
     return it.format.toLowerCase().indexOf("vinyl")===-1}
   return false}
@@ -644,7 +974,7 @@ function badgesHTML(it){
   var o='';
   stores.forEach(function(s){
     var link;
-    var r=S.results[s.id]&&S.results[s.id][it.id];
+    var r=S.results[s.id]&&S.results[s.id][it._key];
     if(s.type==="discogs")link="https://www.discogs.com/sell/release/"+it.id+"?ev=rb&seller_id="+encodeURIComponent(s.seller);
     else if(r&&r.storeUrl)link=r.storeUrl;
     else if(s.getStoreUrl)link=s.getStoreUrl(it);else link=s.url;
@@ -662,7 +992,7 @@ function renderItem(it){
   var meta=[it.label,it.year,it.format.split(",")[0].trim()].filter(Boolean).join(" \u00b7 ");
   var stores=badgesHTML(it);
   var storeRow=stores?'<div class="avail-row"><span class="avail-label">Available at</span>'+stores+'</div>':'';
-  var discLink='<a class="it-lnk" href="https://www.discogs.com/release/'+h(it.id)+'" target="_blank">Discogs</a>';
+  var discLink=it.source==="mb"?'<span class="it-lnk">MusicBrainz</span>':it.source==="itunes"?'<span class="it-lnk">iTunes</span>':it.source==="csv"?'<span class="it-lnk">CSV</span>':it.id?'<a class="it-lnk" href="https://www.discogs.com/release/'+h(it.id)+'" target="_blank">Discogs</a>':'';
   if(S.view==="list"){
     return'<div class="it"><div class="it-iw">'+imgTag(it.thumb,24)+'</div>'+
       '<div class="it-bd"><div class="it-ar">'+h(it.artist)+'</div><div class="it-ti">'+h(it.title)+'</div>'+
@@ -671,26 +1001,69 @@ function renderItem(it){
     '<div class="it-bd"><div class="it-ar">'+h(it.artist)+'</div><div class="it-ti">'+h(it.title)+'</div>'+
     '<div class="it-me">'+h(meta)+'</div>'+storeRow+'<div style="margin-top:4px">'+discLink+'</div></div></div>'}
 
+function wireLoginCard(){
+  var baddcancel=$("baddcancel");
+  if(baddcancel)baddcancel.addEventListener("click",function(){S.addingSource=false;render()});
+  document.querySelectorAll("[data-src]").forEach(function(b){
+    b.addEventListener("click",function(){S.source=b.getAttribute("data-src");S.error=null;S.mbError=null;S.csvPreview=null;render()})});
+  var bgo=$("bgo");
+  if(bgo){
+    bgo.addEventListener("click",function(){S.user=$("iu").value.trim();saveCreds();if(S.user)fetchWL()});
+    var iu=$("iu");if(iu)iu.addEventListener("keydown",function(e){if(e.key==="Enter")bgo.click()})}
+  var imu=$("imu");
+  if(imu)imu.addEventListener("keydown",function(e){
+    if(e.key==="Enter"){S.mbUser=imu.value.trim();saveCreds();if(S.mbUser){S.mbCollections=[];S.mbError=null;fetchMBCollections(S.mbUser)}}});
+  var bmbgo=$("bmbgo");
+  if(bmbgo)bmbgo.addEventListener("click",function(){S.mbUser=($("imu").value||"").trim();saveCreds();if(S.mbUser){S.mbCollections=[];S.mbError=null;fetchMBCollections(S.mbUser)}});
+  var bmbload=$("bmbload");
+  if(bmbload)bmbload.addEventListener("click",function(){
+    S.mbUser=($("imu")?$("imu").value.trim():S.mbUser)||S.mbUser;
+    var chks=document.querySelectorAll(".mbcol-chk");
+    S.mbCollectionIds=Array.prototype.filter.call(chks,function(cb){return cb.checked}).map(function(cb){return cb.value});
+    if(S.mbCollectionIds.length)fetchMBCollection()});
+  var bmbback=$("bmbback");
+  if(bmbback)bmbback.addEventListener("click",function(){S.mbCollections=[];S.mbError=null;render()});
+  var icsv=$("icsv");if(icsv)icsv.addEventListener("input",function(){S.csvText=icsv.value});
+  var icsvf=$("icsv-file");
+  if(icsvf)icsvf.addEventListener("change",function(){
+    var f=icsvf.files[0];if(!f)return;
+    var rd=new FileReader();
+    rd.onload=function(e){
+      /* Detect encoding via BOM, then decode */
+      var buf=e.target.result;
+      var bytes=new Uint8Array(buf.slice(0,3));
+      var enc="utf-8",skip=0;
+      if(bytes[0]===0xFF&&bytes[1]===0xFE){enc="utf-16le";skip=2}
+      else if(bytes[0]===0xFE&&bytes[1]===0xFF){enc="utf-16be";skip=2}
+      else if(bytes[0]===0xEF&&bytes[1]===0xBB&&bytes[2]===0xBF){skip=3}
+      var text=new TextDecoder(enc).decode(buf.slice(skip)).replace(/^\uFEFF/,"");
+      S.csvText=text;
+      S.csvPreview=detectAndParse(text,f.name);
+      render()};
+    rd.readAsArrayBuffer(f)});
+  var bcsvparse=$("bcsvparse");
+  if(bcsvparse)bcsvparse.addEventListener("click",function(){S.csvPreview=detectAndParse(S.csvText,"");render()});
+  var bcsvload=$("bcsvload");
+  if(bcsvload)bcsvload.addEventListener("click",function(){
+    if(S.csvPreview&&S.csvPreview.items.length>0){
+      var merging=S.addingSource;
+      var newItems=S.csvPreview.items.slice();
+      if(merging){newItems=newItems.filter(function(it){return!isDuplicate(it)});S.items=S.items.concat(newItems)}
+      else{S.items=newItems;S.results={};S.invCache={};S.sources=[];S.search="";S.format="all";S.onlyFound=false;S.filterStores={};S.vis=PER_PAGE;}
+      var srcLabel=S.csvPreview.format==="itunes"?"iTunes":"CSV";
+      S.sources=S.sources.concat([srcLabel]);S.addingSource=false;S.loaded=true;render()}});
+  var bcsvback=$("bcsvback");
+  if(bcsvback)bcsvback.addEventListener("click",function(){S.csvPreview=null;render()})}
+
 function render(){
   if(!S.loaded&&!S.loading){
-    var er=S.error?'<div class="error">'+h(S.error)+'</div>':'';
-    root.innerHTML=er+
-      '<div class="card"><div class="form-row">'+
-      '<div><label for="iu">Discogs Username</label><input class="inp" type="text" id="iu" placeholder="your_username" value="'+h(S.user)+'" autocomplete="off"></div>'+
-      '<div><label for="it">Personal Access Token</label><input class="inp" type="text" id="it" placeholder="paste your token here" value="'+h(S.token)+'" autocomplete="off" style="-webkit-text-security:disc">'+
-      '<div class="help">Get one at <a href="https://www.discogs.com/settings/developers" target="_blank">discogs.com/settings/developers</a></div></div>'+
-      '</div><div class="btn-row"><button class="btn" id="bgo">Fetch My Wantlist</button></div></div>'+
-      '<div class="card howto"><strong>How it works</strong><br>1. Enter your Discogs username and token<br>2. We fetch your wantlist from the Discogs API<br>3. Select which Porto and Lisbon stores to check<br>4. Found items link directly to each store\'s listing'+
-      '<div class="note" style="margin-top:16px">\uD83D\uDD12 Everything runs in your browser. Your token is stored only in your session.</div>'+
-      '<div class="note">\uD83D\uDCBF Large wantlists (100+ items) may take a few minutes per store. You can skip slow stores anytime.</div>'+
-      '<div class="note" style="margin-top:12px;font-style:italic;color:var(--tx2)">Visit your neighborhood record stores and shop locally.</div></div>';
-    $("bgo").addEventListener("click",function(){S.user=$("iu").value.trim();S.token=$("it").value.trim();saveCreds();if(S.user)fetchWL()});
-    $("iu").addEventListener("keydown",function(e){if(e.key==="Enter")$("bgo").click()});
-    $("it").addEventListener("keydown",function(e){if(e.key==="Enter")$("bgo").click()});return}
+    root.innerHTML=renderLoginCard();
+    wireLoginCard();
+    return}
   if(S.loading){
     var p=S.progress;
-    root.innerHTML='<div class="card" style="text-align:center;padding:40px"><div style="font-size:16px;font-weight:700;margin-bottom:12px">Fetching your wantlist\u2026</div>'+
-      (p?'<div class="progress-text">Loaded '+p.ld+' of '+p.tot+' items (page '+p.pg+'/'+p.tp+')</div><div class="pbar" style="max-width:300px;margin:8px auto 0"><div class="pfill pfill-dark" style="width:'+(p.ld/Math.max(p.tot,1)*100)+'%"></div></div>':'<div class="progress-text">Connecting to Discogs\u2026</div>')+'</div>';return}
+    root.innerHTML='<div class="card" style="text-align:center;padding:40px"><div style="font-size:16px;font-weight:700;margin-bottom:12px">'+(S.loadingLabel||"Loading\u2026")+'</div>'+
+      (p?'<div class="progress-text">Loaded '+p.ld+' of '+p.tot+' items (page '+p.pg+'/'+p.tp+')</div><div class="pbar" style="max-width:300px;margin:8px auto 0"><div class="pfill pfill-dark" style="width:'+(p.ld/Math.max(p.tot,1)*100)+'%"></div></div>':'<div class="progress-text">Connecting\u2026</div>')+'</div>';return}
   if(S.loaded&&S.items.length===0){
     root.innerHTML='<div class="card empty"><div style="font-size:18px;font-weight:700;margin-bottom:8px">Wantlist is empty</div><button class="btn-sec" style="margin-top:16px" id="bb">\u2190 Back</button></div>';
     $("bb").addEventListener("click",function(){S.loaded=false;render()});return}
@@ -700,8 +1073,12 @@ function render(){
   var tf=totalFound(),hc=hasAnyResults();
   var o='';
 
-  o+='<div class="top-bar"><div style="font-size:13px;color:var(--tx2)">Loaded <strong>'+S.items.length+'</strong> items for <strong>'+h(S.user)+'</strong></div>'+
-    '<div style="display:flex;gap:8px"><button class="btn-sec btn-sm" id="brl">\u21BB Refresh</button><button class="btn-sec btn-sm" id="brs">Logout</button></div></div>';
+  var srcSummary=S.sources.length?S.sources.join(" + "):(S.source==="mb"?"MusicBrainz":S.source==="csv"?"CSV":"Discogs");
+  o+='<div class="top-bar"><div style="font-size:13px;color:var(--tx2)">Loaded <strong>'+S.items.length+'</strong> items \u00b7 <strong>'+h(srcSummary)+'</strong></div>'+
+    '<div style="display:flex;gap:8px">'+
+    (S.sources.length<=1?'<button class="btn-sec btn-sm" id="brl">\u21BB Refresh</button>':'')+
+    '<button class="btn-sec btn-sm" id="badd">+ Add</button>'+
+    '<button class="btn-sec btn-sm" id="brs">Clear</button></div></div>';
 
   o+='<div class="stats"><div class="stat"><div class="stat-n">'+S.items.length+'</div><div class="stat-l">Wantlist</div></div>'+
     '<div class="stat"><div class="stat-n">'+Object.keys(artc).length+'</div><div class="stat-l">Artists</div></div>';
@@ -759,14 +1136,17 @@ function render(){
     o+='<div class="store-stats">';
     o+='<div class="store-stat'+(S.onlyFound&&!hasFilterStores()?' on':'')+'" data-sf="all" style="cursor:pointer"><span style="font-size:11px">All found</span> <span class="cnt">'+tf+'</span></div>';
     if(oosCount>0)o+='<div class="store-stat'+(S.hideOos?' on':'')+'" id="boos" style="cursor:pointer"><span style="font-size:11px">In stock only</span></div>';
-    CHECKABLE.forEach(function(s){if(!S.results[s.id])return;var fc=storeFoundCount(s.id);
+    CHECKABLE.forEach(function(s){if(!S.results[s.id])return;var fc=storeFoundCount(s.id),ec=storeErrCount(s.id);
       var ini=s.name.substring(0,2).toUpperCase();
-      if(fc>0)o+='<div class="store-stat'+(S.filterStores[s.id]?' on':'')+'" data-sf="'+s.id+'" style="cursor:pointer">'+(s.logo?'<div class="slogo"><img src="'+h(s.logo)+'" alt="" data-color="'+s.color+'" data-ini="'+ini+'" onerror="repStoreLogo(this)"></div>':'<div class="slogo" style="background:'+s.color+';border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:7px;font-weight:700">'+ini+'</div>')+h(s.short)+' <span class="cnt">'+fc+'</span></div>'});
+      var logoHtml=s.logo?'<div class="slogo"><img src="'+h(s.logo)+'" alt="" data-color="'+s.color+'" data-ini="'+ini+'" onerror="repStoreLogo(this)"></div>':'<div class="slogo" style="background:'+s.color+';border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:7px;font-weight:700">'+ini+'</div>';
+      if(fc>0)o+='<div class="store-stat'+(S.filterStores[s.id]?' on':'')+'" data-sf="'+s.id+'" style="cursor:pointer">'+logoHtml+h(s.short)+' <span class="cnt">'+fc+'</span>'+(ec?' <span title="'+ec+' requests failed \u2014 site may have rate-limited the checker" style="color:#b45309;font-size:10px">\u26a0\ufe0f</span>':'')+'</div>';
+      else if(ec>0)o+='<div class="store-stat" style="opacity:.7;cursor:default" title="'+ec+' requests failed \u2014 try re-checking (site may rate-limit large lists)">'+logoHtml+h(s.short)+' <span style="color:#b45309;font-size:10px">\u26a0\ufe0f '+ec+' errors</span></div>'});
     o+='</div>'}
 
   /* Toolbar */
   var fmtData=fmts(),fmList=fmtData.list,fmCounts=fmtData.counts;
-  o+='<div class="toolbar"><input class="search" id="isrch" placeholder="Search artist, title, label\u2026" value="'+h(S.search)+'" autocomplete="off">';
+  o+='<div class="toolbar"><input class="search" id="isrch" placeholder="Search artist, title, label\u2026" value="'+h(S.search)+'" autocomplete="off">'+
+    '<button class="btn-sec btn-sm" id="bexp" title="Export as CSV">\u2193 Export</button>';
   o+='<div class="vtog"><button class="vb'+(S.view==="grid"?' on':'')+'" data-v="grid" title="Grid">'+IG+'</button>'+
     '<button class="vb'+(S.view==="list"?' on':'')+'" data-v="list" title="List">'+IL+'</button></div></div>';
   o+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">';
@@ -784,11 +1164,18 @@ function render(){
   if(more)o+='<div class="more"><button class="btn-sec" id="bmo">Show more ('+(fl.length-sh.length)+' remaining)</button></div>';
   if(fl.length===0)o+='<div class="empty">No items match your filters.</div>';
 
+  if(S.addingSource)o=renderLoginCard()+o;
   root.innerHTML=o;
+  if(S.addingSource)wireLoginCard();
 
   /* Events */
-  $("brs").addEventListener("click",function(){S.loaded=false;S.items=[];S.error=null;S.results={};S.invCache={};render()});
-  $("brl").addEventListener("click",function(){if(S.user)fetchWL()});
+  $("brs").addEventListener("click",function(){S.loaded=false;S.items=[];S.error=null;S.results={};S.invCache={};S.sources=[];S.addingSource=false;render()});
+  var badd=$("badd");if(badd)badd.addEventListener("click",function(){S.addingSource=true;S.error=null;render()});
+  var bexp=$("bexp");if(bexp)bexp.addEventListener("click",exportCSV);
+  var brl=$("brl");if(brl)brl.addEventListener("click",function(){
+    if(S.source==="mb"&&S.mbCollectionIds.length)fetchMBCollection();
+    else if(S.source==="csv"){S.loaded=false;render()}
+    else if(S.user)fetchWL()});
   var isrch=$("isrch");if(isrch)isrch.addEventListener("input",function(e){S.search=e.target.value;S.vis=PER_PAGE;render();var el=$("isrch");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}});
   document.querySelectorAll("[data-f]").forEach(function(b){b.addEventListener("click",function(){S.format=b.getAttribute("data-f");S.vis=PER_PAGE;render()})});
   document.querySelectorAll("[data-v]").forEach(function(b){b.addEventListener("click",function(){S.view=b.getAttribute("data-v");render()})});
