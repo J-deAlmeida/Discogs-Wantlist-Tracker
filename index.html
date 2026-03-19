@@ -77,7 +77,7 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
 .vb.on{background:var(--acc)}
 .vb.on svg *{stroke:var(--bg)}
 .vb svg{width:16px;height:16px;stroke:var(--tx2);stroke-width:2;fill:none}
-.store-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.store-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .store-hdr-btns{display:flex;gap:6px}
 .store-hdr-btns button{font-size:11px;color:var(--tx2);background:none;border:none;cursor:pointer;font-family:inherit;text-decoration:underline;text-underline-offset:2px}
 .store-hdr-btns button:hover{color:var(--tx)}
@@ -90,7 +90,10 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
 .city-lisbon{background:#FAECE7;color:#993C1D}
 .dark .city-porto{background:#042C53;color:#85B7EB}
 .dark .city-lisbon{background:#4A1B0C;color:#F0997B}
-.store-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:12px}
+.store-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:12px;animation:gridOpen .2s ease}
+.store-grid.closing{animation:gridClose .15s ease forwards}
+@keyframes gridOpen{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes gridClose{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-6px)}}
 .store-opt{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--bd);border-radius:8px;cursor:pointer;transition:all .15s;background:var(--bg2);font-size:12px}
 .store-opt:hover{border-color:var(--tx3)}
 .store-opt.on{border-color:var(--acc);background:var(--bg3)}
@@ -105,6 +108,8 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
 .store-opt .slinks .ic svg{width:10px;height:10px;stroke:currentColor;stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
 .store-opt input{display:none}
 .check-progress{flex:1;min-width:250px;max-width:500px}
+.check-log{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.cl-entry{font-size:11px;color:var(--grn);background:var(--grn2);border:1px solid var(--grn);border-radius:4px;padding:2px 7px;opacity:.75}
 .store-stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 .store-stat{display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--bd2);border-radius:8px;background:var(--bg2);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
 .store-stat:hover{border-color:var(--tx3)}
@@ -124,15 +129,20 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
 .v-list .it-me{font-size:11px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .v-list .it-act{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 .v-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
-.v-grid .it{background:var(--bg2);border:1px solid var(--bd);border-radius:10px;overflow:hidden;transition:box-shadow .2s,transform .15s;display:flex;flex-direction:column}
-.v-grid .it:hover{box-shadow:0 4px 20px rgba(0,0,0,.08);transform:translateY(-2px)}
-.v-grid .it-iw{width:100%;padding-top:100%;position:relative;overflow:hidden;background:var(--bg3);flex-shrink:0}
-.v-grid .it-iw img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover}
-.v-grid .it-iw .ph{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+.v-grid-sm{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.v-grid .it,.v-grid-sm .it{background:var(--bg2);border:1px solid var(--bd);border-radius:10px;overflow:hidden;transition:box-shadow .2s,transform .15s;display:flex;flex-direction:column}
+.v-grid .it:hover,.v-grid-sm .it:hover{box-shadow:0 4px 20px rgba(0,0,0,.08);transform:translateY(-2px)}
+.v-grid .it-iw,.v-grid-sm .it-iw{width:100%;padding-top:100%;position:relative;overflow:hidden;background:var(--bg3);flex-shrink:0}
+.v-grid .it-iw img,.v-grid-sm .it-iw img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover}
+.v-grid .it-iw .ph,.v-grid-sm .it-iw .ph{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
 .v-grid .it-bd{padding:10px 12px;flex:1;display:flex;flex-direction:column}
+.v-grid-sm .it-bd{padding:7px 9px;flex:1;display:flex;flex-direction:column}
 .v-grid .it-ar{font-size:11px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v-grid-sm .it-ar{font-size:10px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .v-grid .it-ti{font-size:13px;font-weight:700;color:var(--tx);margin-top:1px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.v-grid-sm .it-ti{font-size:11px;font-weight:700;color:var(--tx);margin-top:1px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .v-grid .it-me{font-size:10px;color:var(--tx3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v-grid-sm .it-me{font-size:9px;color:var(--tx3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .badges{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
 .badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap}
 .badge a{text-decoration:underline;text-underline-offset:2px}
@@ -175,7 +185,7 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
   <div class="header">
     <div class="logo">Wantlist <span>&times;</span> Tracker</div>
     <div class="sub">Check your wantlist across Porto &amp; Lisbon record stores</div>
-    <div class="ver">v0.7.7 &mdash; 2026-03-18</div>
+    <div class="ver">v0.7.8 &mdash; 2026-03-19</div>
   </div>
   <div id="root"></div>
   <div style="text-align:center;padding:40px 16px 20px;font-size:11px;color:var(--tx3)">Visit your neighborhood record stores and shop locally.<br><a href="https://github.com/J-deAlmeida/Discogs-Wantlist-Tracker/blob/main/FAQ.md" target="_blank" style="color:var(--tx3);text-decoration:underline;text-underline-offset:2px">FAQ</a> &middot; &copy; 2026 Geminus Dancing Studios. Ardazubre, Baixo Mondego.</div>
@@ -202,6 +212,7 @@ function norm(s){return(s||"").toLowerCase()
   .replace(/[\u00f9-\u00fc]/g,"u").replace(/[\u00f1]/g,"n").replace(/[\u00e7]/g,"c")
   .replace(/[^a-z0-9]/g," ").replace(/\s+/g," ").trim()}
 function artFirst(s){return(s||"").replace(/\s*\(\d+\)\s*$/,"").split(",")[0].trim()}
+function elapsedStr(ms){var s=Math.round(ms/1000);if(s<60)return s+"s";return Math.floor(s/60)+"m "+("0"+(s%60)).slice(-2)+"s"}
 function detectAndParse(text,filename){
   var trimmed=text.trimStart();
   if((filename||"").toLowerCase().endsWith(".xml")||trimmed.startsWith("<?xml")||trimmed.indexOf("<plist")!==-1)
@@ -279,7 +290,7 @@ var STORES=[
    getStoreUrl:function(it){if(!it.id)return"https://www.8mm-records.com";return"https://www.8mm-records.com/release/"+it.id+"/"+slug(artFirst(it.artist)+"-"+it.title)}},
 
   {id:"materia",name:"Matéria Prima",short:"Matéria",type:"web-search",color:"#0F6E56",city:"porto",
-   logo:"img/materia.png",url:"https://www.materiaprima.pt",defOn:true,concurrent:2,delay:600,
+   logo:"img/materia.png",url:"https://www.materiaprima.pt",defOn:false,concurrent:2,delay:600,
    map:"https://www.google.com/maps/search/Materia+Prima+Miguel+Bombarda+Porto",
    getCheckUrl:function(it){return"https://www.materiaprima.pt/lista.php?search="+encodeURIComponent(qryTitle(it))},
    detect:function(j,it){
@@ -293,7 +304,7 @@ var STORES=[
    getStoreUrl:function(it){return"https://www.materiaprima.pt/lista.php?search="+encodeURIComponent(qryTitle(it))}},
 
   {id:"portocalling",name:"Porto Calling",short:"PtCalling",type:"web-search",color:"#639922",city:"porto",
-   logo:"img/portocalling.png",url:"https://portocalling.com",defOn:true,
+   logo:"img/portocalling.png",url:"https://portocalling.com",defOn:false,
    map:"https://www.google.com/maps/search/Porto+Calling+Rua+da+Conceicao+Porto",
    getCheckUrl:function(it){return"https://portocalling.com/en/?s="+encodeURIComponent(qry(it))+"&post_type=product"},
    detect:function(j,it){
@@ -310,7 +321,7 @@ var STORES=[
    getStoreUrl:function(it){return"https://portocalling.com/en/?s="+encodeURIComponent(qry(it))+"&post_type=product"}},
 
   {id:"socorro",name:"Socorro",short:"Socorro",type:"web-search",color:"#A32D2D",city:"porto",
-   logo:"img/socorro.png",url:"https://socorro.pt",defOn:true,
+   logo:"img/socorro.png",url:"https://socorro.pt",defOn:false,
    map:"https://www.google.com/maps/search/Socorro+Record+Store+Porto",
    getCheckUrl:function(it){var s=slug(artFirst(it.artist)+"-"+it.title);return"https://socorro.pt/en/vinyl/"+s},
    detect:function(j,it){
@@ -326,7 +337,7 @@ var STORES=[
    getStoreUrl:function(it){var s=slug(artFirst(it.artist)+"-"+it.title);return"https://socorro.pt/en/vinyl/"+s}},
 
   {id:"musicriots",name:"Music and Riots",short:"M&R",type:"web-search",color:"#854F0B",city:"porto",
-   logo:"img/musicriots.png",url:"https://shopmusicandriots.com",defOn:true,
+   logo:"img/musicriots.png",url:"https://shopmusicandriots.com",defOn:false,
    map:"https://www.google.com/maps/search/Music+and+Riots+Porto",
    getCheckUrl:function(it){return"https://shopmusicandriots.com/search/suggest.json?q="+encodeURIComponent(qry(it))+"&resources[type]=product&limit=10"},
    detect:function(j,it){
@@ -337,7 +348,7 @@ var STORES=[
    getStoreUrl:function(it){return"https://shopmusicandriots.com/search?q="+encodeURIComponent(qry(it))+"&type=product"}},
 
   {id:"discosdobau",name:"Discos do Baú",short:"Baú",type:"web-search",color:"#712B13",city:"porto",
-   logo:"img/discosdobau.png",url:"https://discosdobau.pt",defOn:true,
+   logo:"img/discosdobau.png",url:"https://discosdobau.pt",defOn:false,
    map:"https://www.google.com/maps/search/Discos+do+Bau+Porto",
    getCheckUrl:function(it){return"https://discosdobau.pt/search/suggest.json?q="+encodeURIComponent(qry(it))+"&resources[type]=product&limit=10"},
    detect:function(j,it){
@@ -348,15 +359,15 @@ var STORES=[
    getStoreUrl:function(it){return"https://discosdobau.pt/search?q="+encodeURIComponent(qry(it))+"&type=product"}},
 
   {id:"bunker",name:"Bunker Store",short:"Bunker",type:"discogs",city:"porto",
-   seller:"PerAngustaAdAugusta",color:"#534AB7",defOn:true,
+   seller:"PerAngustaAdAugusta",color:"#534AB7",defOn:false,
    logo:"img/bunker.png",url:"https://www.discogs.com/seller/PerAngustaAdAugusta/profile",
    map:"https://www.google.com/maps/search/Bunker+Store+Passos+Manuel+Porto"},
   {id:"circus",name:"Circus Records",short:"Circus",type:"discogs",city:"porto",
-   seller:"CircusRecordShop",color:"#D85A30",defOn:true,
+   seller:"CircusRecordShop",color:"#D85A30",defOn:false,
    logo:"img/circus.png",url:"https://www.discogs.com/seller/CircusRecordShop/profile",
    map:"https://www.google.com/maps/search/Circus+Records+Rosario+Porto"},
   {id:"piranha",name:"Piranha",short:"Piranha",type:"discogs",city:"porto",
-   seller:"PIRANHACD",color:"#993556",defOn:true,
+   seller:"PIRANHACD",color:"#993556",defOn:false,
    logo:"img/piranha.png",url:"https://www.discogs.com/seller/PIRANHACD/profile",
    map:"https://www.google.com/maps/search/Piranha+Record+Store+Porto"},
 
@@ -382,7 +393,7 @@ var STORES=[
    getStoreUrl:function(it){return"https://louielouie.pt/en_us/catalogsearch/result/?q="+encodeURIComponent(qry(it))}},
 
   {id:"vinyldisc",name:"Vinyl Disc",short:"VDisc",type:"web-search",color:"#B8860B",city:"porto",
-   logo:"img/vinyldisc.png",url:"https://vinyldisc.pt",defOn:true,confirmStock:true,
+   logo:"img/vinyldisc.png",url:"https://vinyldisc.pt",defOn:false,confirmStock:true,
    map:"https://www.google.com/maps/search/Vinyl+Disc+Porto",
    getEndpoint:function(it){return WORKER+"?vinyldisc="+encodeURIComponent(qryTitle(it))},
    detect:function(j,it){
@@ -403,7 +414,7 @@ var STORES=[
 
   /* ========== LISBON ========== */
   {id:"flur",name:"Flur",short:"Flur",type:"web-search",color:"#1A8A8A",city:"lisbon",
-   logo:"img/flur.png",url:"https://www.flur.pt",defOn:true,
+   logo:"img/flur.png",url:"https://www.flur.pt",defOn:false,
    map:"https://www.google.com/maps/search/Flur+Discos+Mercado+Arroios+Lisboa",
    getCheckUrl:function(it){return"https://www.flur.pt/search/suggest.json?q="+encodeURIComponent(qry(it))+"&resources[type]=product&limit=10"},
    detect:function(j,it){
@@ -414,12 +425,12 @@ var STORES=[
    getStoreUrl:function(it){return"https://www.flur.pt/search?q="+encodeURIComponent(qry(it))+"&type=product"}},
 
   {id:"carpetsnares",name:"Carpet & Snares",short:"C&S",type:"graphql",color:"#2D2D7E",city:"lisbon",
-   logo:"img/carpetsnares.png",url:"https://shop.carpetandsnares.com",defOn:true,concurrent:3,delay:700,
+   logo:"img/carpetsnares.png",url:"https://shop.carpetandsnares.com",defOn:false,concurrent:3,delay:700,
    graphqlUrl:"https://shop.carpetandsnares.com/graphql",
    map:"https://www.google.com/maps/search/Carpet+Snares+Records+Rua+Misericordia+Lisboa"},
 
   {id:"peekaboo",name:"Peekaboo",short:"Peekaboo",type:"graphql",city:"lisbon",
-   color:"#B8672A",defOn:true,concurrent:3,delay:700,
+   color:"#B8672A",defOn:false,concurrent:3,delay:700,
    graphqlUrl:"https://www.peekaboorecords.pt/graphql",
    logo:"img/peekaboo.png",url:"https://www.peekaboorecords.pt",
    map:"https://www.google.com/maps/search/Peekaboo+Records+Rua+Misericordia+Lisboa"},
@@ -435,9 +446,10 @@ var CHECKABLE=STORES.filter(function(s){return s.type!=="web-tbd"});
 /* ========== STATE ========== */
 var root=document.getElementById("root");
 var S={items:[],loaded:false,loading:false,error:null,progress:null,
-  search:"",format:"all",vis:PER_PAGE,view:"list",
+  search:"",format:"all",vis:PER_PAGE,view:"grid",storesOpen:true,
   selectedStores:{},checking:false,cabort:false,cskip:false,
   checkPhase:"",checkStore:"",checkProg:null,
+  checkStart:0,storesDone:0,storesTotal:0,checkLog:[],
   /* results: { storeId: { releaseId: {s:"found"|"no"|"err", oos:bool} } } */
   results:{},invCache:{},onlyFound:false,filterStores:{},hideOos:false,
   cityPorto:true,cityLisbon:true,
@@ -723,14 +735,14 @@ async function checkWebStore(store){
     var fc=0,errc=0;Object.values(S.results[store.id]).forEach(function(v){if(v.s==="found")fc++;else if(v.s==="err")errc++});
     S.checkProg={done:done,tot:tot,found:fc,errs:errc};
     var pct=Math.round(done/Math.max(tot,1)*100);
-    var pt=$("chkprog");if(pt)pt.textContent=pct+"% \u00b7 "+fc+" found"+(errc?" \u00b7 \u26a0\ufe0f "+errc+" errors":"");
+    var pt=$("chkprog");if(pt)pt.textContent=pct+"% \u00b7 "+fc+" found"+(errc?" \u00b7 \u26a0\ufe0f "+errc+" errors":"")+" \u00b7 "+elapsedStr(Date.now()-S.checkStart);
     var pf=$("chkfill");if(pf)pf.style.width=pct+"%";
     if(queue.length>0&&!S.cabort&&!S.cskip)await wait(delay)}
   if(S.cskip)console.log("[web] Skipped "+store.name)}
 
 /* ========== GRAPHQL CHECK (Common Ground) ========== */
 async function checkGraphQLStore(store){
-  S.checkPhase="web";S.checkStore=store.name;S.cskip=false;
+  S.checkPhase="web";S.cskip=false;
   if(!S.results[store.id])S.results[store.id]={};
   var allItems=S.items.slice(),done=0,tot=allItems.length;
   var conc=store.concurrent||3,dly=store.delay||700;
@@ -745,7 +757,7 @@ async function checkGraphQLStore(store){
     var fc=0;Object.values(S.results[store.id]).forEach(function(v){if(v.s==="found")fc++});
     S.checkProg={done:done,tot:tot,found:fc};
     var pct=Math.round(done/Math.max(tot,1)*100);
-    var pt=$("chkprog");if(pt)pt.textContent=store.short+": "+pct+"% \u00b7 "+fc+" found";
+    var pt=$("chkprog");if(pt)pt.textContent=store.short+": "+pct+"% \u00b7 "+fc+" found \u00b7 "+elapsedStr(Date.now()-S.checkStart);
     var pf=$("chkfill");if(pf)pf.style.width=pct+"%"}
 
   /* Fast path: direct URL check via worker for items with Discogs ID */
@@ -787,25 +799,36 @@ async function checkGraphQLStore(store){
 async function checkAll(forceRecheck){
   S.checking=true;S.cabort=false;S.cskip=false;
   if(forceRecheck)S.results={};
-  S.filterStores={};S.onlyFound=false;render();
+  S.filterStores={};S.onlyFound=false;
   var selected=CHECKABLE.filter(function(s){return S.selectedStores[s.id]});
-  /* Skip stores already checked (unless re-check) */
   if(!forceRecheck)selected=selected.filter(function(s){return!S.results[s.id]});
+  S.checkStart=Date.now();S.storesDone=0;S.storesTotal=selected.length;S.checkLog=[];
+  render();
   var webStores=selected.filter(function(s){return s.type==="web"||s.type==="web-search"});
   var graphqlStores=selected.filter(function(s){return s.type==="graphql"});
   var discogsStores=selected.filter(function(s){return s.type==="discogs"});
-  for(var j=0;j<webStores.length&&!S.cabort;j++){await checkWebStore(webStores[j]);render()}
-  /* GraphQL stores run in parallel — different servers, separate rate limits */
+  /* GraphQL stores run first (parallel, different servers) so 8mm results appear immediately */
   if(graphqlStores.length>0&&!S.cabort){
     S.checkStore=graphqlStores.map(function(s){return s.short}).join(" + ");
     render();
     await Promise.all(graphqlStores.map(function(s){return checkGraphQLStore(s)}));
+    graphqlStores.forEach(function(s){S.storesDone++;S.checkLog.push({name:s.short,found:storeFoundCount(s.id)})});
     render()}
-  for(var i=0;i<discogsStores.length&&!S.cabort;i++){await checkDiscogsStore(discogsStores[i]);render()}
+  for(var j=0;j<webStores.length&&!S.cabort;j++){
+    await checkWebStore(webStores[j]);
+    S.storesDone++;S.checkLog.push({name:webStores[j].short,found:storeFoundCount(webStores[j].id)});
+    render()}
+  for(var i=0;i<discogsStores.length&&!S.cabort;i++){
+    await checkDiscogsStore(discogsStores[i]);
+    S.storesDone++;S.checkLog.push({name:discogsStores[i].short,found:storeFoundCount(discogsStores[i].id)});
+    render()}
   S.checking=false;S.checkPhase="";S.checkStore="";S.checkProg=null;render()}
 
 function updateCheckUI(){
-  var el=$("chkphase");if(el)el.textContent=(S.checkPhase==="discogs"?"Loading: ":"Checking: ")+S.checkStore}
+  var el=$("chkphase");if(el){
+    var prefix=S.checkPhase==="discogs"?"Loading: ":"Checking: ";
+    var counter=S.storesTotal>1?" ("+( S.storesDone+1)+"/"+S.storesTotal+")":"";
+    el.textContent=prefix+S.checkStore+counter}}
 
 /* ========== RESULT HELPERS ========== */
 function getItemStores(it){
@@ -948,6 +971,7 @@ function renderLoginCard(){
 
 /* ========== RENDER ========== */
 var IG='<svg viewBox="0 0 16 16"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>';
+var IGS='<svg viewBox="0 0 16 16"><rect x="0.5" y="0.5" width="4" height="4" rx="0.5"/><rect x="6" y="0.5" width="4" height="4" rx="0.5"/><rect x="11.5" y="0.5" width="4" height="4" rx="0.5"/><rect x="0.5" y="6" width="4" height="4" rx="0.5"/><rect x="6" y="6" width="4" height="4" rx="0.5"/><rect x="11.5" y="6" width="4" height="4" rx="0.5"/><rect x="0.5" y="11.5" width="4" height="4" rx="0.5"/><rect x="6" y="11.5" width="4" height="4" rx="0.5"/><rect x="11.5" y="11.5" width="4" height="4" rx="0.5"/></svg>';
 var IL='<svg viewBox="0 0 16 16"><rect x="1" y="2" width="14" height="3" rx="1"/><rect x="1" y="7" width="14" height="3" rx="1"/><rect x="1" y="12" width="14" height="3" rx="1"/></svg>';
 /* Expose repImg globally for inline onerror */
 window.repImg=function(img){var sz=parseInt(img.getAttribute("data-sz"))||36;var d=document.createElement("div");d.className="ph";d.innerHTML=svg(sz);img.parentNode.replaceChild(d,img)};
@@ -1086,32 +1110,36 @@ function render(){
   o+='</div>';
 
   /* Store selector */
-  o+='<div class="card"><div class="store-hdr"><div style="font-size:14px;font-weight:700">Stores to check</div>'+
-    '<div style="display:flex;align-items:center;gap:10px">'+
+  var selCount=CHECKABLE.filter(function(s){return S.selectedStores[s.id]}).length;
+  var _chev=S.storesOpen?'<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,5 7,10 12,5"/></svg>':'<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,10 7,5 12,10"/></svg>';
+  o+='<div class="card"><div class="store-hdr"><div id="bstoggle" style="display:flex;align-items:center;gap:6px;cursor:pointer"><span style="display:flex;align-items:center;color:var(--tx2)">'+_chev+'</span><span style="font-size:14px;font-weight:700">Stores to check</span><span style="font-size:11px;color:var(--tx3);font-weight:400">'+(selCount>0?selCount+' selected':'none selected')+'</span></div>'+
+    (S.storesOpen?'<div style="display:flex;align-items:center;gap:10px">'+
     '<div class="city-tog">'+
     '<button class="ct'+(S.cityPorto?" on":"")+'" data-ct="porto">Porto</button>'+
     '<button class="ct'+(S.cityLisbon?" on":"")+'" data-ct="lisbon">Lisbon</button>'+
     '</div>'+
     '<div class="store-hdr-btns"><button id="bsa">Select all</button><button id="bsd">Deselect all</button></div>'+
-    '</div></div>';
-  var visibleStores=STORES.filter(function(s){return(s.city==="porto"&&S.cityPorto)||(s.city==="lisbon"&&S.cityLisbon)});
-  o+='<div class="store-grid">';
-  visibleStores.forEach(function(s){
-    var checkable=s.type!=="web-tbd",checked=S.selectedStores[s.id],tbd=s.type==="web-tbd";
-    var typeLabel=s.type==="discogs"?"Discogs seller":s.type==="web-tbd"?"Coming soon":s.type==="graphql"?"Catalogue search":"Website";
-    if(s.slow)typeLabel+=" \u00b7 Slow";
-    var cityLabel=s.city==="porto"?"Porto":"Lisbon";
-    var cityClass=s.city==="porto"?"city-porto":"city-lisbon";
-    var ini=s.name.substring(0,2).toUpperCase();
-    o+='<label class="store-opt'+(checked&&checkable?' on':'')+'" style="'+(tbd?'opacity:.5;cursor:default':'')+'">';
-    o+='<div class="logo">'+(s.logo?'<img src="'+h(s.logo)+'" alt="" data-color="'+s.color+'" data-ini="'+ini+'" onerror="repStoreLogo(this)">':'<div style="width:100%;height:100%;border-radius:50%;background:'+s.color+';display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:700">'+ini+'</div>')+'</div><div style="flex:1"><div class="sn">'+h(s.name)+'</div><div style="display:flex;align-items:center"><span class="st">'+typeLabel+'</span><span class="city-pill '+cityClass+'">'+cityLabel+'</span></div>';
-    o+='<div class="slinks">';
-    if(s.url)o+='<a href="'+h(s.url)+'" target="_blank" onclick="event.stopPropagation()"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>website</a>';
-    if(s.map)o+='<a href="'+h(s.map)+'" target="_blank" onclick="event.stopPropagation()"><span class="ic"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>map</a>';
-    o+='</div></div>';
-    if(checkable)o+='<input type="checkbox" data-sid="'+s.id+'"'+(checked?' checked':'')+'>';
-    o+='</label>'});
-  o+='</div>';
+    '</div>':'')+
+    '</div>';
+  if(S.storesOpen){
+    var visibleStores=STORES.filter(function(s){return(s.city==="porto"&&S.cityPorto)||(s.city==="lisbon"&&S.cityLisbon)});
+    o+='<div class="store-grid">';
+    visibleStores.forEach(function(s){
+      var checkable=s.type!=="web-tbd",checked=S.selectedStores[s.id],tbd=s.type==="web-tbd";
+      var typeLabel=s.type==="discogs"?"Discogs seller":s.type==="web-tbd"?"Coming soon":s.type==="graphql"?"Catalogue search":"Website";
+      if(s.slow)typeLabel+=" \u00b7 Slow";
+      var cityLabel=s.city==="porto"?"Porto":"Lisbon";
+      var cityClass=s.city==="porto"?"city-porto":"city-lisbon";
+      var ini=s.name.substring(0,2).toUpperCase();
+      o+='<label class="store-opt'+(checked&&checkable?' on':'')+'" style="'+(tbd?'opacity:.5;cursor:default':'')+'">';
+      o+='<div class="logo">'+(s.logo?'<img src="'+h(s.logo)+'" alt="" data-color="'+s.color+'" data-ini="'+ini+'" onerror="repStoreLogo(this)">':'<div style="width:100%;height:100%;border-radius:50%;background:'+s.color+';display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:700">'+ini+'</div>')+'</div><div style="flex:1"><div class="sn">'+h(s.name)+'</div><div style="display:flex;align-items:center"><span class="st">'+typeLabel+'</span><span class="city-pill '+cityClass+'">'+cityLabel+'</span></div>';
+      o+='<div class="slinks">';
+      if(s.url)o+='<a href="'+h(s.url)+'" target="_blank" onclick="event.stopPropagation()"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>website</a>';
+      if(s.map)o+='<a href="'+h(s.map)+'" target="_blank" onclick="event.stopPropagation()"><span class="ic"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>map</a>';
+      o+='</div></div>';
+      if(checkable)o+='<input type="checkbox" data-sid="'+s.id+'"'+(checked?' checked':'')+'>';
+      o+='</label>'});
+    o+='</div>';}
 
   /* Check button + progress */
   var unchecked=CHECKABLE.filter(function(s){return S.selectedStores[s.id]&&!S.results[s.id]}).length;
@@ -1124,9 +1152,11 @@ function render(){
     o+='<button class="btn-sec btn-sm" id="bst">\u25A0 Stop</button>';
     o+='<button class="btn-skip" id="bsk">Skip \u2192</button>';
     o+=spinSvg();
-    o+='<div class="check-progress"><div class="phase-label" id="chkphase">'+(S.checkPhase==="discogs"?"Loading: ":"Checking: ")+h(S.checkStore)+'</div>';
+    var _counter=S.storesTotal>1?" ("+(S.storesDone+1)+"/"+S.storesTotal+")":"";
+    o+='<div class="check-progress"><div class="phase-label" id="chkphase">'+(S.checkPhase==="discogs"?"Loading: ":"Checking: ")+h(S.checkStore)+h(_counter)+'</div>';
     o+='<div class="progress-text" id="chkprog">Starting\u2026</div>';
     o+='<div class="pbar"><div class="pfill pfill-green" id="chkfill" style="width:0%"></div></div>';
+    if(S.checkLog.length>0){o+='<div class="check-log">';S.checkLog.forEach(function(e){o+='<span class="cl-entry">\u2713 '+h(e.name)+(e.found>0?': '+e.found+' found':'')+'</span>'});o+='</div>'}
     o+='</div>'}
   o+='</div></div>';
 
@@ -1147,7 +1177,8 @@ function render(){
   var fmtData=fmts(),fmList=fmtData.list,fmCounts=fmtData.counts;
   o+='<div class="toolbar"><input class="search" id="isrch" placeholder="Search artist, title, label\u2026" value="'+h(S.search)+'" autocomplete="off">'+
     '<button class="btn-sec btn-sm" id="bexp" title="Export as CSV">\u2193 Export</button>';
-  o+='<div class="vtog"><button class="vb'+(S.view==="grid"?' on':'')+'" data-v="grid" title="Grid">'+IG+'</button>'+
+  o+='<div class="vtog"><button class="vb'+(S.view==="grid"?' on':'')+'" data-v="grid" title="Grid (medium)">'+IG+'</button>'+
+    '<button class="vb'+(S.view==="grid-sm"?' on':'')+'" data-v="grid-sm" title="Grid (small)">'+IGS+'</button>'+
     '<button class="vb'+(S.view==="list"?' on':'')+'" data-v="list" title="List">'+IL+'</button></div></div>';
   o+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">';
   fmList.forEach(function(f){
@@ -1180,6 +1211,12 @@ function render(){
   document.querySelectorAll("[data-f]").forEach(function(b){b.addEventListener("click",function(){S.format=b.getAttribute("data-f");S.vis=PER_PAGE;render()})});
   document.querySelectorAll("[data-v]").forEach(function(b){b.addEventListener("click",function(){S.view=b.getAttribute("data-v");render()})});
   document.querySelectorAll("[data-sid]").forEach(function(cb){cb.addEventListener("change",function(){S.selectedStores[cb.getAttribute("data-sid")]=cb.checked;render()})});
+  var bstoggle=$("bstoggle");if(bstoggle)bstoggle.addEventListener("click",function(){
+    if(S.storesOpen){
+      var g=document.querySelector(".store-grid");
+      if(g){g.classList.add("closing");g.addEventListener("animationend",function(){S.storesOpen=false;render()},{once:true})}
+      else{S.storesOpen=false;render()}}
+    else{S.storesOpen=true;render()}});
   var bsa=$("bsa");if(bsa)bsa.addEventListener("click",function(){CHECKABLE.forEach(function(s){if((s.city==="porto"&&S.cityPorto)||(s.city==="lisbon"&&S.cityLisbon))S.selectedStores[s.id]=true});render()});
   var bsd=$("bsd");if(bsd)bsd.addEventListener("click",function(){CHECKABLE.forEach(function(s){if((s.city==="porto"&&S.cityPorto)||(s.city==="lisbon"&&S.cityLisbon))S.selectedStores[s.id]=false});render()});
   document.querySelectorAll("[data-ct]").forEach(function(b){b.addEventListener("click",function(){var c=b.getAttribute("data-ct");if(c==="porto")S.cityPorto=!S.cityPorto;else S.cityLisbon=!S.cityLisbon;if(!S.cityPorto&&!S.cityLisbon){if(c==="porto")S.cityLisbon=true;else S.cityPorto=true}render()})});
