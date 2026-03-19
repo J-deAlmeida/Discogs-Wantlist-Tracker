@@ -90,7 +90,8 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
 .city-lisbon{background:#FAECE7;color:#993C1D}
 .dark .city-porto{background:#042C53;color:#85B7EB}
 .dark .city-lisbon{background:#4A1B0C;color:#F0997B}
-.store-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:12px;animation:gridOpen .2s ease}
+.store-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-bottom:12px}
+.store-grid.opening{animation:gridOpen .2s ease}
 .store-grid.closing{animation:gridClose .15s ease forwards}
 @keyframes gridOpen{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
 @keyframes gridClose{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-6px)}}
@@ -446,7 +447,7 @@ var CHECKABLE=STORES.filter(function(s){return s.type!=="web-tbd"});
 /* ========== STATE ========== */
 var root=document.getElementById("root");
 var S={items:[],loaded:false,loading:false,error:null,progress:null,
-  search:"",format:"all",vis:PER_PAGE,view:"grid",storesOpen:true,
+  search:"",format:"all",vis:PER_PAGE,view:"grid",storesOpen:true,_storesJustOpened:false,
   selectedStores:{},checking:false,cabort:false,cskip:false,
   checkPhase:"",checkStore:"",checkProg:null,
   checkStart:0,storesDone:0,storesTotal:0,checkLog:[],
@@ -1123,7 +1124,7 @@ function render(){
     '</div>';
   if(S.storesOpen){
     var visibleStores=STORES.filter(function(s){return(s.city==="porto"&&S.cityPorto)||(s.city==="lisbon"&&S.cityLisbon)});
-    o+='<div class="store-grid">';
+    o+='<div class="store-grid'+(S._storesJustOpened?' opening':'')+'">';
     visibleStores.forEach(function(s){
       var checkable=s.type!=="web-tbd",checked=S.selectedStores[s.id],tbd=s.type==="web-tbd";
       var typeLabel=s.type==="discogs"?"Discogs seller":s.type==="web-tbd"?"Coming soon":s.type==="graphql"?"Catalogue search":"Website";
@@ -1216,7 +1217,7 @@ function render(){
       var g=document.querySelector(".store-grid");
       if(g){g.classList.add("closing");g.addEventListener("animationend",function(){S.storesOpen=false;render()},{once:true})}
       else{S.storesOpen=false;render()}}
-    else{S.storesOpen=true;render()}});
+    else{S.storesOpen=true;S._storesJustOpened=true;render();S._storesJustOpened=false;}});
   var bsa=$("bsa");if(bsa)bsa.addEventListener("click",function(){CHECKABLE.forEach(function(s){if((s.city==="porto"&&S.cityPorto)||(s.city==="lisbon"&&S.cityLisbon))S.selectedStores[s.id]=true});render()});
   var bsd=$("bsd");if(bsd)bsd.addEventListener("click",function(){CHECKABLE.forEach(function(s){if((s.city==="porto"&&S.cityPorto)||(s.city==="lisbon"&&S.cityLisbon))S.selectedStores[s.id]=false});render()});
   document.querySelectorAll("[data-ct]").forEach(function(b){b.addEventListener("click",function(){var c=b.getAttribute("data-ct");if(c==="porto")S.cityPorto=!S.cityPorto;else S.cityLisbon=!S.cityLisbon;if(!S.cityPorto&&!S.cityLisbon){if(c==="porto")S.cityLisbon=true;else S.cityPorto=true}render()})});
