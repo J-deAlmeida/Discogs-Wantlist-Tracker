@@ -452,7 +452,7 @@ var S={items:[],loaded:false,loading:false,error:null,progress:null,
   checkPhase:"",checkStore:"",checkProg:null,
   checkStart:0,storesDone:0,storesTotal:0,checkLog:[],
   /* results: { storeId: { releaseId: {s:"found"|"no"|"err", oos:bool} } } */
-  results:{},invCache:{},onlyFound:false,filterStores:{},hideOos:false,
+  results:{},catalogCache:{},invCache:{},onlyFound:false,filterStores:{},hideOos:false,
   cityPorto:true,cityLisbon:true,
   user:"",
   source:"discogs",mbUser:"",mbCollections:[],mbCollectionIds:[],mbLoading:false,mbError:null,
@@ -796,6 +796,30 @@ async function checkGraphQLStore(store){
     if(gqlQueue.length>0&&!S.cabort&&!S.cskip)await wait(dly)}
   if(S.cskip)console.log("[graphql] Skipped "+store.name)}
 
+/* ========== CATALOG PRE-FETCH ========== */
+var SHOPIFY_CATALOG_IDS=new Set(["musicriots","discosdobau","flur"]);
+
+async function prefetchCatalogs(stores){
+  var shopifyStores=stores.filter(function(s){return SHOPIFY_CATALOG_IDS.has(s.id)&&!S.catalogCache[s.id]});
+  if(!shopifyStores.length)return;
+  S.checkPhase="catalog";S.checkStore="Loading catalogs\u2026";render();
+  await Promise.all(shopifyStores.map(function(s){
+    return fetch(WORKER+"?catalog="+encodeURIComponent(s.id))
+      .then(function(r){return r.json()})
+      .then(function(d){if(!d.error&&d.products)S.catalogCache[s.id]=d})
+      .catch(function(){/* cold cache — will fall back to live */})}));}
+
+function checkShopifyCached(store){
+  var catalog=S.catalogCache[store.id];
+  if(!catalog||!catalog.products)return false;
+  if(!S.results[store.id])S.results[store.id]={};
+  var prods=catalog.products;
+  S.items.forEach(function(it){
+    var result={s:"no"};
+    for(var i=0;i<prods.length;i++){var m=shopifyMatch(prods[i],it);if(m&&m.found){result={s:"found",oos:m.oos};break}}
+    S.results[store.id][it._key]=result});
+  return true;}
+
 /* ========== CHECK ALL ========== */
 async function checkAll(forceRecheck){
   S.checking=true;S.cabort=false;S.cskip=false;
@@ -808,6 +832,8 @@ async function checkAll(forceRecheck){
   var webStores=selected.filter(function(s){return s.type==="web"||s.type==="web-search"});
   var graphqlStores=selected.filter(function(s){return s.type==="graphql"});
   var discogsStores=selected.filter(function(s){return s.type==="discogs"});
+  /* Pre-fetch Shopify catalogs before checking starts */
+  await prefetchCatalogs(selected);
   /* GraphQL stores run first (parallel, different servers) so 8mm results appear immediately */
   if(graphqlStores.length>0&&!S.cabort){
     S.checkStore=graphqlStores.map(function(s){return s.short}).join(" + ");
@@ -816,6 +842,10 @@ async function checkAll(forceRecheck){
     graphqlStores.forEach(function(s){S.storesDone++;S.checkLog.push({name:s.short,found:storeFoundCount(s.id)})});
     render()}
   for(var j=0;j<webStores.length&&!S.cabort;j++){
+    /* Use cached catalog for Shopify stores when available */
+    if(SHOPIFY_CATALOG_IDS.has(webStores[j].id)&&checkShopifyCached(webStores[j])){
+      S.storesDone++;S.checkLog.push({name:webStores[j].short,found:storeFoundCount(webStores[j].id)});
+      render();continue}
     await checkWebStore(webStores[j]);
     S.storesDone++;S.checkLog.push({name:webStores[j].short,found:storeFoundCount(webStores[j].id)});
     render()}

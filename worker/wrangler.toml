@@ -1,0 +1,10 @@
+name = "porto-store-proxy"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding = "INVENTORY_KV"
+id = "a2a0635bae1f40b4a7f8bf457b6a76bf"
+
+[triggers]
+crons = ["0 */6 * * *"]

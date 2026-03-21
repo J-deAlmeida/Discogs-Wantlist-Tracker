@@ -1,16 +1,33 @@
 // ============================================================
-// Porto Wantlist Tracker — Cloudflare Worker (v3.2)
+// Porto Wantlist Tracker — Cloudflare Worker (v3.3)
 // ============================================================
-// Four endpoints:
+// Endpoints:
 //   ?url=<target>          — CORS proxy for store websites
 //   ?inventory=<seller>    — KV-cached Discogs seller inventory
 //   ?vinyldisc=<query>     — Vinyl Disc search proxy
 //   ?wantlist=<user>       — Discogs wantlist proxy (uses DISCOGS_TOKEN)
+//   ?catalog=<storeId>     — Return pre-fetched store catalog from KV
+//
+// Scheduled (cron every 6h):
+//   Fetches full Shopify catalogs for configured stores → KV
 //
 // Bindings required:
 //   INVENTORY_KV   — KV namespace for cached inventories
 //   DISCOGS_TOKEN  — Secret: Discogs personal access token
 // ============================================================
+
+// Shopify stores to pre-fetch on schedule
+const CATALOG_STORES = [
+  { id: "musicriots",  type: "shopify", domain: "shopmusicandriots.com" },
+  { id: "discosdobau", type: "shopify", domain: "discosdobau.pt" },
+  { id: "flur",        type: "shopify", domain: "www.flur.pt" },
+];
+
+// KV TTL for catalogs: 12 hours
+const CATALOG_TTL = 12 * 60 * 60;
+
+// Max pages to fetch per store (250 products/page = 5,000 products)
+const CATALOG_MAX_PAGES = 20;
 
 const ALLOWED_DOMAINS = new Set([
   "www.8mm-records.com", "8mm-records.com",
@@ -31,12 +48,24 @@ const ALLOWED_DOMAINS = new Set([
 const KV_TTL = 6 * 60 * 60;
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === "OPTIONS") {
       return cors(new Response(null, { status: 204 }));
     }
 
     const { searchParams } = new URL(request.url);
+
+    // --- Catalog read endpoint ---
+    const catalogId = searchParams.get("catalog");
+    if (catalogId !== null) {
+      return handleCatalogRead(catalogId, env);
+    }
+
+    // --- Manual catalog refresh (admin) — fire and forget, returns immediately ---
+    if (searchParams.get("refresh_catalogs") !== null) {
+      ctx.waitUntil(scheduledFetch(env));
+      return json({ ok: true, stores: CATALOG_STORES.map((s) => s.id) });
+    }
 
     // --- Wantlist endpoint ---
     const wlUser = searchParams.get("wantlist");
@@ -58,9 +87,13 @@ export default {
 
     // --- Proxy endpoint ---
     const target = searchParams.get("url");
-    if (!target) return json({ error: "Missing ?url=, ?inventory=, ?vinyldisc=, or ?wantlist= parameter" }, 400);
+    if (!target) return json({ error: "Missing ?url=, ?inventory=, ?vinyldisc=, ?wantlist=, or ?catalog= parameter" }, 400);
 
     return handleProxy(target);
+  },
+
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(scheduledFetch(env));
   },
 };
 
@@ -288,6 +321,71 @@ async function handleProxy(target) {
   } catch (err) {
     return json({ error: err.message }, 502);
   }
+}
+
+// ============================================================
+// Catalog read endpoint
+// ============================================================
+async function handleCatalogRead(storeId, env) {
+  if (!/^[a-z0-9_-]{1,30}$/.test(storeId)) {
+    return json({ error: "Invalid store id" }, 400);
+  }
+  try {
+    const data = await env.INVENTORY_KV.get(`catalog:shopify:${storeId}`, "json");
+    if (!data) return json({ error: "not_cached" }, 404);
+    return json(data);
+  } catch (e) {
+    return json({ error: e.message }, 500);
+  }
+}
+
+// ============================================================
+// Scheduled: pre-fetch all store catalogs into KV
+// ============================================================
+async function scheduledFetch(env) {
+  await Promise.all(CATALOG_STORES.map(async (store) => {
+    try {
+      if (store.type === "shopify") await fetchShopifyCatalog(store, env);
+    } catch (e) {
+      console.error(`[catalog] Failed ${store.id}:`, e.message);
+    }
+  }));
+}
+
+async function fetchShopifyCatalog(store, env) {
+  const products = [];
+  let page = 1;
+
+  while (true) {
+    const url = `https://${store.domain}/products.json?limit=250&page=${page}`;
+    const resp = await fetch(url, {
+      headers: { "User-Agent": "PortoWantlistTracker/3.3" },
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} on page ${page}`);
+
+    const data = await resp.json();
+    const batch = data.products || [];
+    if (batch.length === 0) break;
+
+    for (const p of batch) {
+      products.push({
+        title: p.title || "",
+        vendor: p.vendor || "",
+        available: p.variants ? p.variants.some((v) => v.available) : false,
+      });
+    }
+
+    if (batch.length < 250 || page >= CATALOG_MAX_PAGES) break;
+    page++;
+    await sleep(500);
+  }
+
+  await env.INVENTORY_KV.put(
+    `catalog:shopify:${store.id}`,
+    JSON.stringify({ storeId: store.id, fetched: Date.now(), products }),
+    { expirationTtl: CATALOG_TTL }
+  );
+  console.log(`[catalog] ${store.id}: ${products.length} products cached`);
 }
 
 // ============================================================
