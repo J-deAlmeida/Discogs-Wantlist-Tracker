@@ -156,6 +156,17 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
 .avail-label{font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:.3px;margin-right:2px}
 .it-lnk{display:inline-flex;align-items:center;font-size:11px;font-weight:600;color:var(--tx3);text-decoration:none;padding:3px 8px;border:1px solid var(--bd2);border-radius:5px;transition:all .15s;background:var(--bg2);white-space:nowrap}
 .it-lnk:hover{background:var(--bg3);color:var(--tx)}
+/* Stack effect — layers peek below-right, suggesting physical depth */
+.v-list .it-grp:not(.open),.v-grid .it-grp:not(.open),.v-grid-sm .it-grp:not(.open){box-shadow:4px 4px 0 0 var(--bd2),8px 8px 0 0 var(--bd2)}
+.v-list .it-grp.open,.v-grid .it-grp.open,.v-grid-sm .it-grp.open{box-shadow:none}
+.v-list .it-grp:not(.open){margin-right:8px;margin-bottom:16px}
+.v-grid .it-grp:not(.open),.v-grid-sm .it-grp:not(.open){margin-right:8px;margin-bottom:16px}
+.grp-tog{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;color:var(--tx3);background:transparent;border:1px solid var(--bd2);border-radius:8px;padding:3px 8px;margin-top:7px;cursor:pointer;transition:all .15s;width:fit-content}
+.grp-tog:hover{background:var(--bg3);color:var(--tx);border-color:var(--bd)}
+.grp-tog svg{flex-shrink:0;opacity:.7}
+.grp-body{margin-top:8px;display:flex;flex-direction:column;gap:0}
+.grp-row{display:flex;flex-direction:column;gap:3px;padding:8px 0 8px 12px;border-left:2px solid var(--bd2);margin-left:6px;margin-bottom:4px}
+.grp-row:last-child{margin-bottom:0}
 .empty{text-align:center;padding:40px;color:var(--tx3)}
 .howto{text-align:center;color:var(--tx2);font-size:13px;line-height:1.7}
 .howto strong{color:var(--tx)}
@@ -452,7 +463,7 @@ var S={items:[],loaded:false,loading:false,error:null,progress:null,
   checkPhase:"",checkStore:"",checkProg:null,
   checkStart:0,storesDone:0,storesTotal:0,checkLog:[],
   /* results: { storeId: { releaseId: {s:"found"|"no"|"err", oos:bool} } } */
-  results:{},catalogCache:{},invCache:{},onlyFound:false,filterStores:{},hideOos:false,
+  results:{},catalogCache:{},invCache:{},onlyFound:false,filterStores:{},hideOos:false,expanded:{},
   cityPorto:true,cityLisbon:true,
   user:"",
   source:"discogs",mbUser:"",mbCollections:[],mbCollectionIds:[],mbLoading:false,mbError:null,
@@ -721,18 +732,28 @@ async function checkWebItem(store,it){
     return store.detect(j,it)
   }catch(e){return{s:"err"}}}
 
+/* Group items by normalized artist+title — returns [{rep, keys}] where rep is the
+   representative item to check and keys are all _keys that share the same title. */
+function groupItems(items){
+  var groups={},order=[];
+  items.forEach(function(it){
+    var k=norm(artFirst(it.artist))+"\x00"+norm(it.title);
+    if(!groups[k]){groups[k]={rep:it,keys:[]};order.push(k)}
+    groups[k].keys.push(it._key)});
+  return order.map(function(k){return groups[k]})}
+
 async function checkWebStore(store){
   S.checkPhase="web";S.checkStore=store.name;S.cskip=false;
   if(!S.results[store.id])S.results[store.id]={};
-  var queue=S.items.slice(),done=0,tot=S.items.length;
+  var groups=groupItems(S.items),queue=groups.slice(),done=0,tot=S.items.length;
   var conc=store.concurrent||CONCURRENT;
   var delay=store.delay||250;
   S.checkProg={done:0,tot:tot,found:0};updateCheckUI();
   while(queue.length>0&&!S.cabort&&!S.cskip){
     var batch=queue.splice(0,conc);
-    var results=await Promise.all(batch.map(function(it){return checkWebItem(store,it).then(function(r){return{it:it,r:r}})}));
-    results.forEach(function(o){S.results[store.id][o.it._key]=o.r});
-    done+=batch.length;
+    var results=await Promise.all(batch.map(function(g){return checkWebItem(store,g.rep).then(function(r){return{g:g,r:r}})}));
+    results.forEach(function(o){o.g.keys.forEach(function(k){S.results[store.id][k]=o.r})});
+    done+=batch.reduce(function(s,g){return s+g.keys.length},0);
     var fc=0,errc=0;Object.values(S.results[store.id]).forEach(function(v){if(v.s==="found")fc++;else if(v.s==="err")errc++});
     S.checkProg={done:done,tot:tot,found:fc,errs:errc};
     var pct=Math.round(done/Math.max(tot,1)*100);
@@ -752,7 +773,9 @@ async function checkGraphQLStore(store){
   /* If store has a fast URL check (getCheckUrl+detect), route ID items through it.
      Items without a Discogs ID always fall back to GraphQL text search. */
   var idQueue=store.getCheckUrl?allItems.filter(function(it){return!!it.id}):[];
-  var gqlQueue=store.getCheckUrl?allItems.filter(function(it){return!it.id}):allItems;
+  var noIdItems=store.getCheckUrl?allItems.filter(function(it){return!it.id}):allItems;
+  /* Deduplicate no-ID items by artist+title — one GraphQL request per unique title */
+  var gqlQueue=groupItems(noIdItems);
 
   function cgProg(){
     var fc=0;Object.values(S.results[store.id]).forEach(function(v){if(v.s==="found")fc++});
@@ -770,10 +793,11 @@ async function checkGraphQLStore(store){
     done+=batch.length;cgProg();
     if(idQueue.length>0&&!S.cabort&&!S.cskip)await wait(dly)}
 
-  /* GraphQL text search for items without a Discogs ID */
+  /* GraphQL text search for items without a Discogs ID — deduplicated by title */
   while(gqlQueue.length>0&&!S.cabort&&!S.cskip){
     var batch=gqlQueue.splice(0,conc);
-    var results=await Promise.all(batch.map(function(it){
+    var results=await Promise.all(batch.map(function(g){
+      var it=g.rep;
       return fetch(store.graphqlUrl,{
         method:"POST",
         headers:{"Content-Type":"application/json"},
@@ -788,11 +812,11 @@ async function checkGraphQLStore(store){
             for(var k=0;k<ls.length;k++){if(ls[k].available&&ls[k].stock&&ls[k].stock.quantity>0){hasStock=true;break}}
             var itemPath=items[i].path||"";
             var storeUrl=itemPath?(store.url+itemPath):store.url;
-            return{it:it,r:{s:"found",oos:!hasStock,storeUrl:storeUrl,exact:!!m.exact}}}}
-        return{it:it,r:{s:"no"}}
-      }).catch(function(){return{it:it,r:{s:"err"}}})}));
-    results.forEach(function(o){S.results[store.id][o.it._key]=o.r});
-    done+=batch.length;cgProg();
+            return{g:g,r:{s:"found",oos:!hasStock,storeUrl:storeUrl,exact:!!m.exact}}}}
+        return{g:g,r:{s:"no"}}
+      }).catch(function(){return{g:g,r:{s:"err"}}})}));
+    results.forEach(function(o){o.g.keys.forEach(function(k){S.results[store.id][k]=o.r})});
+    done+=batch.reduce(function(s,g){return s+g.keys.length},0);cgProg();
     if(gqlQueue.length>0&&!S.cabort&&!S.cskip)await wait(dly)}
   if(S.cskip)console.log("[graphql] Skipped "+store.name)}
 
@@ -1043,6 +1067,57 @@ function badgesHTML(it){
     o+='</span>'});
   return o}
 
+function groupKey(it){return norm(artFirst(it.artist))+"|||"+norm(it.title)}
+
+/* Union of all stores found across any pressing in a group */
+function groupBadgesHTML(items){
+  var seen={};
+  var o='';
+  STORES.forEach(function(s){
+    for(var i=0;i<items.length;i++){
+      var r=S.results[s.id]&&S.results[s.id][items[i]._key];
+      if(r&&r.s==="found"&&!seen[s.id]){
+        seen[s.id]=true;
+        var oos=true;
+        for(var j=0;j<items.length;j++){var rj=S.results[s.id]&&S.results[s.id][items[j]._key];if(rj&&rj.s==="found"&&!rj.oos){oos=false;break}}
+        var link=r.storeUrl||(s.getStoreUrl?s.getStoreUrl(items[0]):s.url);
+        if(s.type==="discogs"&&items[0].id)link="https://www.discogs.com/sell/release/"+items[0].id+"?ev=rb&seller_id="+encodeURIComponent(s.seller);
+        o+='<span class="badge'+(oos?" oos":"")+'" style="background:'+s.color+'15;color:'+s.color+'">'+
+          '<a href="'+h(link)+'" target="_blank" style="color:'+s.color+'">'+h(s.short)+'</a>'+
+          (oos?' <span class="hint">oos</span>':'')+'</span>';
+        break}}});
+  return o}
+
+function renderGroup(items){
+  if(items.length===1)return renderItem(items[0]);
+  var rep=items[0];
+  var thumb=items.find(function(i){return i.thumb});
+  var gk=groupKey(rep);
+  var open=!!S.expanded[gk];
+  var unionBadges=groupBadgesHTML(items);
+  var unionRow=unionBadges?'<div class="avail-row"><span class="avail-label">Available at</span>'+unionBadges+'</div>':'';
+  var stackIcon='<svg width="12" height="10" viewBox="0 0 12 10" fill="currentColor"><rect x="0" y="0" width="12" height="2.5" rx="0.5" opacity=".4"/><rect x="0" y="3.75" width="12" height="2.5" rx="0.5" opacity=".7"/><rect x="0" y="7.5" width="12" height="2.5" rx="0.5"/></svg>';
+  var tog='<button class="grp-tog" data-gk="'+h(gk)+'">'+stackIcon+items.length+' pressings '+(open?'&#9650;':'&#9660;')+'</button>';
+  var hd='<div class="it it-grp'+(open?' open':'')+' '+S.view+'">'+
+    '<div class="it-iw">'+imgTag(thumb?thumb.thumb:null,S.view==="list"?24:36)+'</div>'+
+    '<div class="it-bd">'+
+    '<div class="it-ar">'+h(rep.artist)+'</div>'+
+    '<div class="it-ti">'+h(rep.title)+'</div>'+
+    unionRow+tog+
+    '</div></div>';
+  if(!open)return hd;
+  var rows='<div class="grp-body">';
+  items.forEach(function(it){
+    var meta=[it.label,it.year,it.format.split(",")[0].trim()].filter(Boolean).join(" \u00b7 ");
+    var badges=badgesHTML(it);
+    var discLink=it.source==="mb"?'<span class="it-lnk">MusicBrainz</span>':it.source==="itunes"?'<span class="it-lnk">iTunes</span>':it.source==="csv"?'<span class="it-lnk">CSV</span>':it.id?'<a class="it-lnk" href="https://www.discogs.com/release/'+h(it.id)+'" target="_blank">Discogs</a>':'';
+    rows+='<div class="grp-row">'+
+      '<div class="it-me">'+h(meta)+'</div>'+
+      (badges?'<div class="avail-row">'+badges+'</div>':'')+
+      discLink+'</div>'});
+  rows+='</div>';
+  return hd+rows}
+
 function renderItem(it){
   var meta=[it.label,it.year,it.format.split(",")[0].trim()].filter(Boolean).join(" \u00b7 ");
   var stores=badgesHTML(it);
@@ -1222,7 +1297,10 @@ function render(){
     o+='</span></button>'});
   o+='</div>';
 
-  o+='<div class="v-'+S.view+'">';sh.forEach(function(it){o+=renderItem(it)});o+='</div>';
+  /* Group items by artist+title for accordion view */
+  var shGroups=[],shGroupMap={};
+  sh.forEach(function(it){var k=groupKey(it);if(!shGroupMap[k]){shGroupMap[k]=[];shGroups.push(shGroupMap[k])}shGroupMap[k].push(it)});
+  o+='<div class="v-'+S.view+'">';shGroups.forEach(function(g){o+=renderGroup(g)});o+='</div>';
   if(more)o+='<div class="more"><button class="btn-sec" id="bmo">Show more ('+(fl.length-sh.length)+' remaining)</button></div>';
   if(fl.length===0)o+='<div class="empty">No items match your filters.</div>';
 
@@ -1260,6 +1338,7 @@ function render(){
       S.onlyFound=hasFilterStores()||S.onlyFound}
     S.vis=PER_PAGE;render()})});
   var bmo=$("bmo");if(bmo)bmo.addEventListener("click",function(){S.vis+=PER_PAGE;render()});
+  document.querySelectorAll(".grp-tog").forEach(function(b){b.addEventListener("click",function(e){e.stopPropagation();var gk=b.getAttribute("data-gk");S.expanded[gk]=!S.expanded[gk];render()})});
   var boos=$("boos");if(boos)boos.addEventListener("click",function(){S.hideOos=!S.hideOos;S.onlyFound=S.hideOos||S.onlyFound;S.vis=PER_PAGE;render()});
   var bch=$("bch");if(bch)bch.addEventListener("click",function(){checkAll(false)});
   var brch=$("brch");if(brch)brch.addEventListener("click",function(){checkAll(true)});
