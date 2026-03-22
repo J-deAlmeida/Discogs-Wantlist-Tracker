@@ -197,7 +197,7 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
   <div class="header">
     <div class="logo">Wantlist <span>&times;</span> Tracker</div>
     <div class="sub">Check your wantlist across Porto &amp; Lisbon record stores</div>
-    <div class="ver">v0.8.0 &mdash; 2026-03-22</div>
+    <div class="ver">v0.11.0 &mdash; 2026-03-22</div>
   </div>
   <div id="root"></div>
   <div style="text-align:center;padding:40px 16px 20px;font-size:11px;color:var(--tx3)">Visit your neighborhood record stores and shop locally.<br><a href="https://github.com/J-deAlmeida/Discogs-Wantlist-Tracker/blob/main/FAQ.md" target="_blank" style="color:var(--tx3);text-decoration:underline;text-underline-offset:2px">FAQ</a> &middot; &copy; 2026 Geminus Dancing Studios. Ardazubre, Baixo Mondego.</div>
@@ -285,175 +285,134 @@ function cgMatch(cgItem,it){
   if(ai.length>2&&pt.indexOf(ai)===-1&&cgArtists.indexOf(ai)===-1)return null;
   return{found:true,exact:false}}
 
+/* ========== PLATFORM ADAPTERS ========== */
+var ADAPTERS={
+  'shopify-suggest':{
+    getCheckUrl:function(s,it){return'https://'+s.domain+'/search/suggest.json?q='+encodeURIComponent(qry(it))+'&resources[type]=product&limit=10'},
+    detect:function(s,j,it){if(!j.json)return{s:'no'};var prods=(j.json.resources&&j.json.resources.results&&j.json.resources.results.products)||[];for(var i=0;i<prods.length;i++){var m=shopifyMatch(prods[i],it);if(m&&m.found)return{s:'found',oos:m.oos}}return{s:'no'}},
+    getStoreUrl:function(s,it){return'https://'+s.domain+'/search?q='+encodeURIComponent(qry(it))+'&type=product'}},
+  'vinyldisc':{
+    getEndpoint:function(s,it){return WORKER+'?vinyldisc='+encodeURIComponent(qryTitle(it))},
+    detect:function(s,j,it){if(!j.json||!Array.isArray(j.json)||j.json.length===0)return{s:'no'};var ti=norm(it.title),ai=norm(artFirst(it.artist));if(ti.length<3)return{s:'no'};for(var i=0;i<j.json.length;i++){var r=j.json[i],pt=norm(r.titulo||''),pa=norm(r.artista||'');if(pt.indexOf(ti)!==-1||(ti.length>5&&ti.indexOf(pt)!==-1)){if(ai.length<3||pa.indexOf(ai)!==-1||pt.indexOf(ai)!==-1)return{s:'found',storeUrl:r.url}}}return{s:'no'}},
+    getStoreUrl:function(s,it){return'https://vinyldisc.pt/#page=0&q='+encodeURIComponent(qryTitle(it))}},
+  'text-match':{
+    getCheckUrl:function(s,it){return s.searchUrl.replace('{{titleQuery}}',encodeURIComponent(qryTitle(it)))},
+    detect:function(s,j,it){if(!j.bodyText)return{s:'err'};var b=norm(j.bodyText),ti=norm(it.title),ai=norm(artFirst(it.artist));if(ti.length<3)return{s:'no'};if(b.indexOf(ti)!==-1&&(ai.length<3||b.indexOf(ai)!==-1)){var oos=/no stock|sem stock|esgotado|sold out|out of stock|indispon/i.test(j.bodyText);return{s:'found',oos:oos}}return{s:'no'}},
+    getStoreUrl:function(s,it){return s.searchUrl.replace('{{titleQuery}}',encodeURIComponent(qryTitle(it)))}},
+  'woocommerce':{
+    getCheckUrl:function(s,it){return s.searchUrl.replace('{{query}}',encodeURIComponent(qry(it)))},
+    detect:function(s,j,it){if(!j.bodyText)return{s:'err'};var b=norm(j.bodyText);if(b.indexOf('no products')!==-1||b.indexOf('nenhum produto')!==-1||b.indexOf('no results')!==-1)return{s:'no'};var pt=norm(j.title||'')+' '+norm(j.ogTitle||'');var ti=norm(it.title);if(ti.length>3&&pt.indexOf(ti)!==-1)return{s:'found'};var rMatch=j.bodyText.match(/(\d+)\s*result/i);if(rMatch&&parseInt(rMatch[1])===0)return{s:'no'};if(rMatch&&parseInt(rMatch[1])>0&&textMatch(j.bodyText,artFirst(it.artist),it.title))return{s:'found'};return{s:'no'}},
+    getStoreUrl:function(s,it){return s.searchUrl.replace('{{query}}',encodeURIComponent(qry(it)))}},
+  'slug-direct':{
+    getCheckUrl:function(s,it){return s.baseUrl+'/'+slug(artFirst(it.artist)+'-'+it.title)},
+    detect:function(s,j,it){if(!j.bodyText)return{s:'err'};if(j.status===404||j.status===301)return{s:'no'};var pt=norm(j.title||''),ti=norm(it.title);var found=false;if(ti.length>3&&pt.indexOf(ti)!==-1)found=true;if(!found&&textMatch(j.bodyText,artFirst(it.artist),it.title)&&j.hasPrice)found=true;if(!found)return{s:'no'};var oos=/no stock|sem stock|esgotado|sold out|out of stock|indispon/i.test(j.bodyText);return{s:'found',oos:oos}},
+    getStoreUrl:function(s,it){return s.baseUrl+'/'+slug(artFirst(it.artist)+'-'+it.title)}},
+  'magento':{
+    getCheckUrl:function(s,it){return s.searchUrl.replace('{{titleQuery}}',encodeURIComponent(qryTitle(it)))},
+    detect:function(s,j,it){if(!j.bodyText)return{s:'err'};var b=norm(j.bodyText),ti=norm(it.title),ai=norm(artFirst(it.artist));var itemMatch=j.bodyText.match(/(\d+)\s*Items?\b/i);var itemCount=itemMatch?parseInt(itemMatch[1]):0;if(itemCount===0||b.indexOf('your search returned no results')!==-1)return{s:'no'};if(ti.length<5||ai.length<3)return{s:'no'};if(b.indexOf(ti)===-1||b.indexOf(ai)===-1)return{s:'no'};var oos=/out of stock|esgotado|fora de stock|sem stock/i.test(j.bodyText);return{s:'found',oos:oos}},
+    getStoreUrl:function(s,it){return s.searchUrl.replace('{{titleQuery}}',encodeURIComponent(qry(it)))}}
+};
+
+var PLATFORM_LABELS={
+  'common-ground':'Catalogue search',
+  'discogs':'Discogs seller',
+  'shopify-suggest':'Catalogue search',
+  'text-match':'Website',
+  'woocommerce':'Website',
+  'magento':'Website',
+  'slug-direct':'Website',
+  'vinyldisc':'Website',
+  'web-tbd':'Coming soon'
+};
+
 /* ========== STORE REGISTRY ========== */
 var STORES=[
-  {id:"8mm",name:"8mm Records",short:"8mm",type:"graphql",color:"#D35400",city:"porto",
+  {id:"8mm",name:"8mm Records",short:"8mm",platform:"common-ground",color:"#D35400",city:"porto",
    logo:"img/8mm.png",url:"https://www.8mm-records.com",defOn:true,concurrent:3,delay:400,
    graphqlUrl:"https://www.8mm-records.com/graphql",
    map:"https://www.google.com/maps/search/8mm+Records+Rodrigues+Freitas+Porto",
-   /* Fast path for items with Discogs ID: release pages are SSR'd, title tag is populated */
    getCheckUrl:function(it){if(!it.id)return null;return"https://www.8mm-records.com/release/"+it.id+"/"+slug(artFirst(it.artist)+"-"+it.title)},
-   detect:function(j,it){
-     if(!j.title||j.title.length<10)return{s:"no"};
-     var l=j.title.toLowerCase();
-     if(l.startsWith("8mm records")||l==="8mm")return{s:"no"};
-     var oos=/no stock|sem stock|esgotado|sold out|out of stock|indispon/i.test(j.bodyText||"");
-     return{s:"found",oos:oos}},
+   detect:function(j,it){if(!j.title||j.title.length<10)return{s:"no"};var l=j.title.toLowerCase();if(l.startsWith("8mm records")||l==="8mm")return{s:"no"};var oos=/no stock|sem stock|esgotado|sold out|out of stock|indispon/i.test(j.bodyText||"");return{s:"found",oos:oos}},
    getStoreUrl:function(it){if(!it.id)return"https://www.8mm-records.com";return"https://www.8mm-records.com/release/"+it.id+"/"+slug(artFirst(it.artist)+"-"+it.title)}},
 
-  {id:"materia",name:"Matéria Prima",short:"Matéria",type:"web-search",color:"#0F6E56",city:"porto",
+  {id:"materia",name:"Mat\u00e9ria Prima",short:"Mat\u00e9ria",platform:"text-match",color:"#0F6E56",city:"porto",
    logo:"img/materia.png",url:"https://www.materiaprima.pt",defOn:false,concurrent:2,delay:600,
    map:"https://www.google.com/maps/search/Materia+Prima+Miguel+Bombarda+Porto",
-   getCheckUrl:function(it){return"https://www.materiaprima.pt/lista.php?search="+encodeURIComponent(qryTitle(it))},
-   detect:function(j,it){
-     if(!j.bodyText)return{s:"err"};
-     var b=norm(j.bodyText),ti=norm(it.title),ai=norm(artFirst(it.artist));
-     if(ti.length<3)return{s:"no"};
-     if(b.indexOf(ti)!==-1&&(ai.length<3||b.indexOf(ai)!==-1)){
-       var oos=/no stock|sem stock|esgotado|sold out|out of stock|indispon/i.test(j.bodyText);
-       return{s:"found",oos:oos}}
-     return{s:"no"}},
-   getStoreUrl:function(it){return"https://www.materiaprima.pt/lista.php?search="+encodeURIComponent(qryTitle(it))}},
+   searchUrl:"https://www.materiaprima.pt/lista.php?search={{titleQuery}}"},
 
-  {id:"portocalling",name:"Porto Calling",short:"PtCalling",type:"web-search",color:"#639922",city:"porto",
+  {id:"portocalling",name:"Porto Calling",short:"PtCalling",platform:"woocommerce",color:"#639922",city:"porto",
    logo:"img/portocalling.png",url:"https://portocalling.com",defOn:false,
    map:"https://www.google.com/maps/search/Porto+Calling+Rua+da+Conceicao+Porto",
-   getCheckUrl:function(it){return"https://portocalling.com/en/?s="+encodeURIComponent(qry(it))+"&post_type=product"},
-   detect:function(j,it){
-     if(!j.bodyText)return{s:"err"};
-     var b=norm(j.bodyText);
-     if(b.indexOf("no products")!==-1||b.indexOf("nenhum produto")!==-1||b.indexOf("no results")!==-1)return{s:"no"};
-     var pt=norm(j.title||"")+"|"+norm(j.ogTitle||"");
-     var ti=norm(it.title);
-     if(ti.length>3&&pt.indexOf(ti)!==-1)return{s:"found"};
-     var rMatch=j.bodyText.match(/(\d+)\s*result/i);
-     if(rMatch&&parseInt(rMatch[1])===0)return{s:"no"};
-     if(rMatch&&parseInt(rMatch[1])>0&&textMatch(j.bodyText,artFirst(it.artist),it.title))return{s:"found"};
-     return{s:"no"}},
-   getStoreUrl:function(it){return"https://portocalling.com/en/?s="+encodeURIComponent(qry(it))+"&post_type=product"}},
+   searchUrl:"https://portocalling.com/en/?s={{query}}&post_type=product"},
 
-  {id:"socorro",name:"Socorro",short:"Socorro",type:"web-search",color:"#A32D2D",city:"porto",
+  {id:"socorro",name:"Socorro",short:"Socorro",platform:"slug-direct",color:"#A32D2D",city:"porto",
    logo:"img/socorro.png",url:"https://socorro.pt",defOn:false,
    map:"https://www.google.com/maps/search/Socorro+Record+Store+Porto",
-   getCheckUrl:function(it){var s=slug(artFirst(it.artist)+"-"+it.title);return"https://socorro.pt/en/vinyl/"+s},
-   detect:function(j,it){
-     if(!j.bodyText)return{s:"err"};
-     if(j.status===404||j.status===301)return{s:"no"};
-     var pt=norm(j.title||""),ti=norm(it.title),bl=norm(j.bodyText);
-     var found=false;
-     if(ti.length>3&&pt.indexOf(ti)!==-1)found=true;
-     if(!found&&textMatch(j.bodyText,artFirst(it.artist),it.title)&&j.hasPrice)found=true;
-     if(!found)return{s:"no"};
-     var oos=/no stock|sem stock|esgotado|sold out|out of stock|indispon/i.test(j.bodyText);
-     return{s:"found",oos:oos}},
-   getStoreUrl:function(it){var s=slug(artFirst(it.artist)+"-"+it.title);return"https://socorro.pt/en/vinyl/"+s}},
+   baseUrl:"https://socorro.pt/en/vinyl"},
 
-  {id:"musicriots",name:"Music and Riots",short:"M&R",type:"web-search",color:"#854F0B",city:"porto",
+  {id:"musicriots",name:"Music and Riots",short:"M&R",platform:"shopify-suggest",color:"#854F0B",city:"porto",
    logo:"img/musicriots.png",url:"https://shopmusicandriots.com",defOn:false,
    map:"https://www.google.com/maps/search/Music+and+Riots+Porto",
-   getCheckUrl:function(it){return"https://shopmusicandriots.com/search/suggest.json?q="+encodeURIComponent(qry(it))+"&resources[type]=product&limit=10"},
-   detect:function(j,it){
-     if(!j.json)return{s:"no"};
-     var prods=(j.json.resources&&j.json.resources.results&&j.json.resources.results.products)||[];
-     for(var i=0;i<prods.length;i++){var m=shopifyMatch(prods[i],it);if(m&&m.found)return{s:"found",oos:m.oos}}
-     return{s:"no"}},
-   getStoreUrl:function(it){return"https://shopmusicandriots.com/search?q="+encodeURIComponent(qry(it))+"&type=product"}},
+   domain:"shopmusicandriots.com"},
 
-  {id:"discosdobau",name:"Discos do Baú",short:"Baú",type:"web-search",color:"#712B13",city:"porto",
+  {id:"discosdobau",name:"Discos do Ba\u00fa",short:"Ba\u00fa",platform:"shopify-suggest",color:"#712B13",city:"porto",
    logo:"img/discosdobau.png",url:"https://discosdobau.pt",defOn:false,
    map:"https://www.google.com/maps/search/Discos+do+Bau+Porto",
-   getCheckUrl:function(it){return"https://discosdobau.pt/search/suggest.json?q="+encodeURIComponent(qry(it))+"&resources[type]=product&limit=10"},
-   detect:function(j,it){
-     if(!j.json)return{s:"no"};
-     var prods=(j.json.resources&&j.json.resources.results&&j.json.resources.results.products)||[];
-     for(var i=0;i<prods.length;i++){var m=shopifyMatch(prods[i],it);if(m&&m.found)return{s:"found",oos:m.oos}}
-     return{s:"no"}},
-   getStoreUrl:function(it){return"https://discosdobau.pt/search?q="+encodeURIComponent(qry(it))+"&type=product"}},
+   domain:"discosdobau.pt"},
 
-  {id:"bunker",name:"Bunker Store",short:"Bunker",type:"discogs",city:"porto",
+  {id:"bunker",name:"Bunker Store",short:"Bunker",platform:"discogs",city:"porto",
    seller:"PerAngustaAdAugusta",color:"#534AB7",defOn:false,
    logo:"img/bunker.png",url:"https://www.discogs.com/seller/PerAngustaAdAugusta/profile",
    map:"https://www.google.com/maps/search/Bunker+Store+Passos+Manuel+Porto"},
-  {id:"circus",name:"Circus Records",short:"Circus",type:"discogs",city:"porto",
+
+  {id:"circus",name:"Circus Records",short:"Circus",platform:"discogs",city:"porto",
    seller:"CircusRecordShop",color:"#D85A30",defOn:false,
    logo:"img/circus.png",url:"https://www.discogs.com/seller/CircusRecordShop/profile",
    map:"https://www.google.com/maps/search/Circus+Records+Rosario+Porto"},
-  {id:"piranha",name:"Piranha",short:"Piranha",type:"discogs",city:"porto",
+
+  {id:"piranha",name:"Piranha",short:"Piranha",platform:"discogs",city:"porto",
    seller:"PIRANHACD",color:"#993556",defOn:false,
    logo:"img/piranha.png",url:"https://www.discogs.com/seller/PIRANHACD/profile",
    map:"https://www.google.com/maps/search/Piranha+Record+Store+Porto"},
 
-  {id:"louie",name:"Louie Louie",short:"Louie",type:"web-search",color:"#185FA5",city:"porto",
+  {id:"louie",name:"Louie Louie",short:"Louie",platform:"magento",color:"#185FA5",city:"porto",
    logo:"img/louie.png",url:"https://www.louielouie.pt",defOn:false,slow:true,
    map:"https://www.google.com/maps/search/Louie+Louie+Almada+Porto",
    concurrent:1,delay:1500,
-   getCheckUrl:function(it){return"https://louielouie.pt/en_us/catalogsearch/result/?q="+encodeURIComponent(qryTitle(it))},
-   detect:function(j,it){
-     if(!j.bodyText)return{s:"err"};
-     var b=norm(j.bodyText),ti=norm(it.title),ai=norm(artFirst(it.artist));
-     /* Parse Magento item count */
-     var itemMatch=j.bodyText.match(/(\d+)\s*Items?\b/i);
-     var itemCount=itemMatch?parseInt(itemMatch[1]):0;
-     if(itemCount===0||b.indexOf("your search returned no results")!==-1)return{s:"no"};
-     /* Skip very short titles — too many false positives */
-     if(ti.length<5)return{s:"no"};
-     /* Require BOTH artist AND title in the body — not just one */
-     if(ai.length<3)return{s:"no"};
-     if(b.indexOf(ti)===-1||b.indexOf(ai)===-1)return{s:"no"};
-     var oos=/out of stock|esgotado|fora de stock|sem stock/i.test(j.bodyText);
-     return{s:"found",oos:oos}},
-   getStoreUrl:function(it){return"https://louielouie.pt/en_us/catalogsearch/result/?q="+encodeURIComponent(qry(it))}},
+   searchUrl:"https://louielouie.pt/en_us/catalogsearch/result/?q={{titleQuery}}"},
 
-  {id:"vinyldisc",name:"Vinyl Disc",short:"VDisc",type:"web-search",color:"#B8860B",city:"porto",
+  {id:"vinyldisc",name:"Vinyl Disc",short:"VDisc",platform:"vinyldisc",color:"#B8860B",city:"porto",
    logo:"img/vinyldisc.png",url:"https://vinyldisc.pt",defOn:false,confirmStock:true,
-   map:"https://www.google.com/maps/search/Vinyl+Disc+Porto",
-   getEndpoint:function(it){return WORKER+"?vinyldisc="+encodeURIComponent(qryTitle(it))},
-   detect:function(j,it){
-     if(!j.json||!Array.isArray(j.json)||j.json.length===0)return{s:"no"};
-     var ti=norm(it.title),ai=norm(artFirst(it.artist));
-     if(ti.length<3)return{s:"no"};
-     for(var i=0;i<j.json.length;i++){
-       var r=j.json[i],pt=norm(r.titulo||""),pa=norm(r.artista||"");
-       if(pt.indexOf(ti)!==-1||(ti.length>5&&ti.indexOf(pt)!==-1)){
-         if(ai.length<3||pa.indexOf(ai)!==-1||pt.indexOf(ai)!==-1)
-           return{s:"found",storeUrl:r.url}}}
-     return{s:"no"}},
-   getStoreUrl:function(it){return"https://vinyldisc.pt/#page=0&q="+encodeURIComponent(qryTitle(it))}},
+   map:"https://www.google.com/maps/search/Vinyl+Disc+Porto"},
 
-  {id:"tubitek",name:"Tubitek",short:"Tubitek",type:"web-tbd",color:"#3C3489",city:"porto",
+  {id:"tubitek",name:"Tubitek",short:"Tubitek",platform:"web-tbd",color:"#3C3489",city:"porto",
    logo:"img/tubitek.png",url:"https://cdgo.com",
    map:"https://www.google.com/maps/search/Tubitek+Praca+Dom+Joao+Porto"},
 
   /* ========== LISBON ========== */
-  {id:"flur",name:"Flur",short:"Flur",type:"web-search",color:"#1A8A8A",city:"lisbon",
+  {id:"flur",name:"Flur",short:"Flur",platform:"shopify-suggest",color:"#1A8A8A",city:"lisbon",
    logo:"img/flur.png",url:"https://www.flur.pt",defOn:false,
    map:"https://www.google.com/maps/search/Flur+Discos+Mercado+Arroios+Lisboa",
-   getCheckUrl:function(it){return"https://www.flur.pt/search/suggest.json?q="+encodeURIComponent(qry(it))+"&resources[type]=product&limit=10"},
-   detect:function(j,it){
-     if(!j.json)return{s:"no"};
-     var prods=(j.json.resources&&j.json.resources.results&&j.json.resources.results.products)||[];
-     for(var i=0;i<prods.length;i++){var m=shopifyMatch(prods[i],it);if(m&&m.found)return{s:"found",oos:m.oos}}
-     return{s:"no"}},
-   getStoreUrl:function(it){return"https://www.flur.pt/search?q="+encodeURIComponent(qry(it))+"&type=product"}},
+   domain:"www.flur.pt"},
 
-  {id:"carpetsnares",name:"Carpet & Snares",short:"C&S",type:"graphql",color:"#2D2D7E",city:"lisbon",
+  {id:"carpetsnares",name:"Carpet & Snares",short:"C&S",platform:"common-ground",color:"#2D2D7E",city:"lisbon",
    logo:"img/carpetsnares.png",url:"https://shop.carpetandsnares.com",defOn:false,concurrent:3,delay:700,
    graphqlUrl:"https://shop.carpetandsnares.com/graphql",
    map:"https://www.google.com/maps/search/Carpet+Snares+Records+Rua+Misericordia+Lisboa"},
 
-  {id:"peekaboo",name:"Peekaboo",short:"Peekaboo",type:"graphql",city:"lisbon",
+  {id:"peekaboo",name:"Peekaboo",short:"Peekaboo",platform:"common-ground",city:"lisbon",
    color:"#B8672A",defOn:false,concurrent:3,delay:700,
    graphqlUrl:"https://www.peekaboorecords.pt/graphql",
    logo:"img/peekaboo.png",url:"https://www.peekaboorecords.pt",
    map:"https://www.google.com/maps/search/Peekaboo+Records+Rua+Misericordia+Lisboa"},
 
-  {id:"carbono",name:"Carbono",short:"Carbono",type:"web-tbd",city:"lisbon",
+  {id:"carbono",name:"Carbono",short:"Carbono",platform:"web-tbd",city:"lisbon",
    color:"#4A6741",
    logo:"img/carbono.png",url:"http://www.carbono.com.pt",
    map:"https://www.google.com/maps/search/Carbono+Discos+Rua+Telhal+Lisboa"}
 ];
 
-var CHECKABLE=STORES.filter(function(s){return s.type!=="web-tbd"});
+var CHECKABLE=STORES.filter(function(s){return s.platform!=="web-tbd"});
 
 /* ========== STATE ========== */
 var root=document.getElementById("root");
@@ -723,13 +682,16 @@ async function checkDiscogsStore(store){
 
 /* ========== WEB CHECK ========== */
 async function checkWebItem(store,it){
-  var cu=store.getCheckUrl?store.getCheckUrl(it):null;
-  var endpoint=store.getEndpoint?store.getEndpoint(it):(cu?WORKER+"?url="+encodeURIComponent(cu):null);
+  var adapter=ADAPTERS[store.platform]||{};
+  var cu=(adapter.getCheckUrl?adapter.getCheckUrl(store,it):null)||(store.getCheckUrl?store.getCheckUrl(it):null);
+  var endpoint=(adapter.getEndpoint?adapter.getEndpoint(store,it):null)||(store.getEndpoint?store.getEndpoint(it):null)||(cu?WORKER+"?url="+encodeURIComponent(cu):null);
   if(!endpoint)return{s:"no"};
   try{
     var r=await fetch(endpoint);if(!r.ok)return{s:"err"};
     var j=await r.json();if(j.error)return{s:"err"};
-    return store.detect(j,it)
+    var detectFn=adapter.detect?function(j,it){return adapter.detect(store,j,it)}:store.detect;
+    if(!detectFn)return{s:"no"};
+    return detectFn(j,it)
   }catch(e){return{s:"err"}}}
 
 /* Group items by normalized artist+title — returns [{rep, keys}] where rep is the
@@ -853,9 +815,9 @@ async function checkAll(forceRecheck){
   if(!forceRecheck)selected=selected.filter(function(s){return!S.results[s.id]});
   S.checkStart=Date.now();S.storesDone=0;S.storesTotal=selected.length;S.checkLog=[];
   render();
-  var webStores=selected.filter(function(s){return s.type==="web"||s.type==="web-search"});
-  var graphqlStores=selected.filter(function(s){return s.type==="graphql"});
-  var discogsStores=selected.filter(function(s){return s.type==="discogs"});
+  var webStores=selected.filter(function(s){return s.platform!=="discogs"&&s.platform!=="common-ground"&&s.platform!=="web-tbd"});
+  var graphqlStores=selected.filter(function(s){return s.platform==="common-ground"});
+  var discogsStores=selected.filter(function(s){return s.platform==="discogs"});
   /* Pre-fetch Shopify catalogs before checking starts */
   await prefetchCatalogs(selected);
   /* GraphQL stores run first (parallel, different servers) so 8mm results appear immediately */
@@ -1036,13 +998,14 @@ function imgTag(src,sz){
   if(!src)return'<div class="ph">'+svg(sz||36)+'</div>';
   return'<img src="'+h(src)+'" alt="" loading="lazy" data-sz="'+(sz||36)+'" onerror="repImg(this)">'}
 
+var WEB_SEARCH_PLATFORMS=new Set(['text-match','woocommerce','magento','slug-direct','vinyldisc','shopify-suggest']);
 function isFormatUncertain(it,store){
   /* Search-based stores match by title, not release ID — format could differ.
      Most Porto stores primarily sell vinyl. If wantlist item is NOT vinyl,
      a search match likely means a different format is available. */
-  if(store.type==="web-search")return it.format.toLowerCase().indexOf("vinyl")===-1;
-  /* GraphQL stores: if match was exact (same release ID), format is certain */
-  if(store.type==="graphql"){
+  if(WEB_SEARCH_PLATFORMS.has(store.platform))return it.format.toLowerCase().indexOf("vinyl")===-1;
+  /* Common Ground stores: if match was exact (same release ID), format is certain */
+  if(store.platform==="common-ground"){
     var r=S.results[store.id]&&S.results[store.id][it._key];
     if(r&&r.exact)return false;
     return it.format.toLowerCase().indexOf("vinyl")===-1}
@@ -1054,9 +1017,9 @@ function badgesHTML(it){
   stores.forEach(function(s){
     var link;
     var r=S.results[s.id]&&S.results[s.id][it._key];
-    if(s.type==="discogs")link="https://www.discogs.com/sell/release/"+it.id+"?ev=rb&seller_id="+encodeURIComponent(s.seller);
+    if(s.platform==="discogs")link="https://www.discogs.com/sell/release/"+it.id+"?ev=rb&seller_id="+encodeURIComponent(s.seller);
     else if(r&&r.storeUrl)link=r.storeUrl;
-    else if(s.getStoreUrl)link=s.getStoreUrl(it);else link=s.url;
+    else{var _adp=ADAPTERS[s.platform]||{};var _gsu=_adp.getStoreUrl||s.getStoreUrl;link=_gsu?_gsu(s,it):s.url}
     var oos=isOos(it,s.id);
     var diff=isFormatUncertain(it,s);
     o+='<span class="badge'+(oos?" oos":"")+(diff?" diff":"")+'" style="'+(diff?"":"background:"+s.color+"15;color:"+s.color)+'">';
@@ -1080,8 +1043,9 @@ function groupBadgesHTML(items){
         seen[s.id]=true;
         var oos=true;
         for(var j=0;j<items.length;j++){var rj=S.results[s.id]&&S.results[s.id][items[j]._key];if(rj&&rj.s==="found"&&!rj.oos){oos=false;break}}
-        var link=r.storeUrl||(s.getStoreUrl?s.getStoreUrl(items[0]):s.url);
-        if(s.type==="discogs"&&items[0].id)link="https://www.discogs.com/sell/release/"+items[0].id+"?ev=rb&seller_id="+encodeURIComponent(s.seller);
+        var _adp2=ADAPTERS[s.platform]||{};var _gsu2=_adp2.getStoreUrl||s.getStoreUrl;
+        var link=r.storeUrl||(_gsu2?_gsu2(s,items[0]):s.url);
+        if(s.platform==="discogs"&&items[0].id)link="https://www.discogs.com/sell/release/"+items[0].id+"?ev=rb&seller_id="+encodeURIComponent(s.seller);
         o+='<span class="badge'+(oos?" oos":"")+'" style="background:'+s.color+'15;color:'+s.color+'">'+
           '<a href="'+h(link)+'" target="_blank" style="color:'+s.color+'">'+h(s.short)+'</a>'+
           (oos?' <span class="hint">oos</span>':'')+'</span>';
@@ -1231,8 +1195,8 @@ function render(){
     var visibleStores=STORES.filter(function(s){return(s.city==="porto"&&S.cityPorto)||(s.city==="lisbon"&&S.cityLisbon)});
     o+='<div class="store-grid'+(S._storesJustOpened?' opening':'')+'">';
     visibleStores.forEach(function(s){
-      var checkable=s.type!=="web-tbd",checked=S.selectedStores[s.id],tbd=s.type==="web-tbd";
-      var typeLabel=s.type==="discogs"?"Discogs seller":s.type==="web-tbd"?"Coming soon":s.type==="graphql"?"Catalogue search":"Website";
+      var checkable=s.platform!=="web-tbd",checked=S.selectedStores[s.id],tbd=s.platform==="web-tbd";
+      var typeLabel=PLATFORM_LABELS[s.platform]||"Website";
       if(s.slow)typeLabel+=" \u00b7 Slow";
       var cityLabel=s.city==="porto"?"Porto":"Lisbon";
       var cityClass=s.city==="porto"?"city-porto":"city-lisbon";
