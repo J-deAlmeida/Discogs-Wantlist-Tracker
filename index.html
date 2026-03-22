@@ -179,10 +179,12 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
 .spinner{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;animation:spin 1.8s linear infinite}
 .spinner svg{display:block}
 .phase-label{font-size:11px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.store-city-hdr{display:none;grid-column:1/-1;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--tx3);padding:8px 2px 2px;margin-top:4px}
 @media(max-width:600px){
   .v-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
   .v-list .it{flex-wrap:wrap}
-  .store-grid{grid-template-columns:1fr 1fr}
+  .store-grid{grid-template-columns:1fr}
+  .store-city-hdr{display:block}
 }
 .src-tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid var(--bd)}
 .src-tab{background:none;border:none;padding:10px 16px;font-size:13px;font-weight:600;color:var(--tx3);cursor:pointer;font-family:inherit;position:relative;transition:color .15s}
@@ -200,7 +202,7 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
   <div class="header">
     <div class="logo">Wantlist <span>&times;</span> Tracker</div>
     <div class="sub">Check your wantlist across Porto &amp; Lisbon record stores</div>
-    <div class="ver">v0.9.0 &mdash; 2026-03-22</div>
+    <div class="ver">v0.10.0 &mdash; 2026-03-22</div>
   </div>
   <div id="root"></div>
   <div style="text-align:center;padding:40px 16px 20px;font-size:11px;color:var(--tx3)">Visit your neighborhood record stores and shop locally.<br><a href="https://github.com/J-deAlmeida/Discogs-Wantlist-Tracker/blob/main/FAQ.md" target="_blank" style="color:var(--tx3);text-decoration:underline;text-underline-offset:2px">FAQ</a> &middot; &copy; 2026 Geminus Dancing Studios. Ardazubre, Baixo Mondego.</div>
@@ -1234,6 +1236,7 @@ function wireLoginCard(){
   if(bcsvback)bcsvback.addEventListener("click",function(){S.csvPreview=null;render()})}
 
 function render(){
+  var _sy=S.checking?window.scrollY:0;
   if(!S.loaded&&!S.loading){
     root.innerHTML=renderLoginCard();
     wireLoginCard();
@@ -1285,9 +1288,11 @@ function render(){
     '</div>':'')+
     '</div>';
   if(S.storesOpen){
-    var visibleStores=STORES.filter(function(s){return(s.city==="porto"&&S.cityPorto)||(s.city==="lisbon"&&S.cityLisbon)});
+    var portoStores=STORES.filter(function(s){return s.city==="porto"&&S.cityPorto});
+    var lisbonStores=STORES.filter(function(s){return s.city==="lisbon"&&S.cityLisbon});
+    var bothCities=S.cityPorto&&S.cityLisbon&&portoStores.length>0&&lisbonStores.length>0;
     o+='<div class="store-grid'+(S._storesJustOpened?' opening':'')+'">';
-    visibleStores.forEach(function(s){
+    var renderStoreCard=function(s){
       var checkable=s.type!=="web-tbd",checked=S.selectedStores[s.id],tbd=s.type==="web-tbd";
       var typeLabel=s.type==="discogs"?"Discogs seller":s.type==="web-tbd"?"Coming soon":s.type==="graphql"?"Catalogue search":"Website";
       if(s.slow)typeLabel+=" \u00b7 Slow";
@@ -1301,7 +1306,11 @@ function render(){
       if(s.map)o+='<a href="'+h(s.map)+'" target="_blank" onclick="event.stopPropagation()"><span class="ic"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>map</a>';
       o+='</div></div>';
       if(checkable)o+='<input type="checkbox" data-sid="'+s.id+'"'+(checked?' checked':'')+'>';
-      o+='</label>'});
+      o+='</label>'};
+    if(bothCities)o+='<div class="store-city-hdr">Porto</div>';
+    portoStores.forEach(renderStoreCard);
+    if(bothCities)o+='<div class="store-city-hdr">Lisbon</div>';
+    lisbonStores.forEach(renderStoreCard);
     o+='</div>';}
 
   /* Check button + progress */
@@ -1363,6 +1372,7 @@ function render(){
 
   if(S.addingSource)o=renderLoginCard()+o;
   root.innerHTML=o;
+  if(S.checking)requestAnimationFrame(function(){window.scrollTo(0,_sy)});
   if(S.addingSource)wireLoginCard();
 
   /* Events */
