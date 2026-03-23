@@ -85,9 +85,15 @@ export default {
       return handleVinylDisc(vinylQuery);
     }
 
+    // --- ID resolution endpoint ---
+    const resolveQuery = searchParams.get("resolve");
+    if (resolveQuery !== null) {
+      return handleResolve(resolveQuery, env);
+    }
+
     // --- Proxy endpoint ---
     const target = searchParams.get("url");
-    if (!target) return json({ error: "Missing ?url=, ?inventory=, ?vinyldisc=, ?wantlist=, or ?catalog= parameter" }, 400);
+    if (!target) return json({ error: "Missing ?url=, ?inventory=, ?vinyldisc=, ?wantlist=, ?catalog=, or ?resolve= parameter" }, 400);
 
     return handleProxy(target);
   },
@@ -386,6 +392,45 @@ async function fetchShopifyCatalog(store, env) {
     { expirationTtl: CATALOG_TTL }
   );
   console.log(`[catalog] ${store.id}: ${products.length} products cached`);
+}
+
+// ============================================================
+// ID Resolution endpoint: search Discogs for a release ID by artist+title
+// ============================================================
+async function handleResolve(query, env) {
+  const parts = decodeURIComponent(query).split("\n");
+  const artist = (parts[0] || "").trim();
+  const title = (parts[1] || "").trim();
+  if (!artist || !title) return json({ id: null });
+
+  const cacheKey = "resolve:" + (artist + ":" + title).toLowerCase().slice(0, 80);
+  try {
+    const cached = await env.INVENTORY_KV.get(cacheKey);
+    if (cached !== null) return json({ id: cached || null, cached: true });
+  } catch (e) {}
+
+  try {
+    const url = `https://api.discogs.com/database/search?` +
+      `artist=${encodeURIComponent(artist)}&` +
+      `release_title=${encodeURIComponent(title)}&` +
+      `type=release&per_page=3`;
+    const r = await fetch(url, {
+      headers: {
+        "Authorization": `Discogs token=${env.DISCOGS_TOKEN}`,
+        "User-Agent": "PortoWantlistTracker/3.3",
+      },
+    });
+    if (!r.ok) return json({ id: null });
+    const data = await r.json();
+    const results = data.results || [];
+    const id = results.length > 0 ? String(results[0].id) : "";
+    try {
+      await env.INVENTORY_KV.put(cacheKey, id, { expirationTtl: 7 * 24 * 60 * 60 });
+    } catch (e) {}
+    return json({ id: id || null });
+  } catch (err) {
+    return json({ id: null, error: err.message });
+  }
 }
 
 // ============================================================

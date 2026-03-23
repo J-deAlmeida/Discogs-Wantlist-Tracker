@@ -202,7 +202,7 @@ label{display:block;font-size:13px;font-weight:600;color:var(--tx);margin-bottom
   <div class="header">
     <div class="logo">Wantlist <span>&times;</span> Tracker</div>
     <div class="sub">Check your wantlist across Porto &amp; Lisbon record stores</div>
-    <div class="ver">v0.11.0 &mdash; 2026-03-22</div>
+    <div class="ver">v0.12.0 &mdash; 2026-03-23</div>
   </div>
   <div id="root"></div>
   <div style="text-align:center;padding:40px 16px 20px;font-size:11px;color:var(--tx3)">Visit your neighborhood record stores and shop locally.<br><a href="https://github.com/J-deAlmeida/Discogs-Wantlist-Tracker/blob/main/FAQ.md" target="_blank" style="color:var(--tx3);text-decoration:underline;text-underline-offset:2px">FAQ</a> &middot; &copy; 2026 Geminus Dancing Studios. Ardazubre, Baixo Mondego.</div>
@@ -831,6 +831,29 @@ async function checkGraphQLStore(store){
     if(gqlQueue.length>0&&!S.cabort&&!S.cskip)await wait(dly)}
   if(S.cskip)console.log("[graphql] Skipped "+store.name)}
 
+/* ========== DISCOGS ID RESOLUTION ========== */
+async function resolveDiscogsIds(){
+  var hasDiscogs=CHECKABLE.some(function(s){return s.platform==="discogs"&&S.selectedStores[s.id]});
+  if(!hasDiscogs)return;
+  var toResolve=S.items.filter(function(it){return!it.id});
+  if(!toResolve.length)return;
+  S.checkPhase="resolve";S.checkStore="Resolving Discogs IDs\u2026";S.cskip=false;
+  var done=0,tot=toResolve.length;
+  S.checkProg={done:0,tot:tot,found:0};render();
+  for(var i=0;i<toResolve.length&&!S.cabort&&!S.cskip;i++){
+    var it=toResolve[i];
+    try{
+      var q=encodeURIComponent(artFirst(it.artist)+"\n"+it.title);
+      var r=await fetch(WORKER+"?resolve="+q);
+      if(r.ok){var d=await r.json();if(d.id){it.id=d.id;it._key=d.id}}
+    }catch(e){}
+    done++;
+    S.checkProg={done:done,tot:tot,found:0};
+    var pt=$("chkprog");if(pt)pt.textContent=done+"/"+tot+" checked \u00b7 "+elapsedStr(Date.now()-S.checkStart);
+    var pf=$("chkfill");if(pf)pf.style.width=Math.round(done/tot*100)+"%";
+    if(i<toResolve.length-1&&!S.cabort&&!S.cskip)await wait(1100)}
+  if(S.cskip)console.log("[resolve] Skipped ID resolution")}
+
 /* ========== CATALOG PRE-FETCH ========== */
 var SHOPIFY_CATALOG_IDS=new Set(["musicriots","discosdobau","flur"]);
 
@@ -867,6 +890,9 @@ async function checkAll(forceRecheck){
   var webStores=selected.filter(function(s){return s.platform!=="discogs"&&s.platform!=="common-ground"&&s.platform!=="web-tbd"});
   var graphqlStores=selected.filter(function(s){return s.platform==="common-ground"});
   var discogsStores=selected.filter(function(s){return s.platform==="discogs"});
+  /* Resolve Discogs IDs for non-Discogs sources (MB/CSV/iTunes) */
+  await resolveDiscogsIds();
+  if(S.cabort){S.checking=false;S.checkPhase="";S.checkStore="";S.checkProg=null;render();return}
   /* Pre-fetch Shopify catalogs before checking starts */
   await prefetchCatalogs(selected);
   /* GraphQL stores run first (parallel, different servers) so 8mm results appear immediately */
@@ -1069,7 +1095,7 @@ function badgesHTML(it){
     var r=S.results[s.id]&&S.results[s.id][it._key];
     if(s.platform==="discogs")link="https://www.discogs.com/sell/release/"+it.id+"?ev=rb&seller_id="+encodeURIComponent(s.seller);
     else if(r&&r.storeUrl)link=r.storeUrl;
-    else{var _adp=ADAPTERS[s.platform]||{};var _gsu=_adp.getStoreUrl||s.getStoreUrl;link=_gsu?_gsu(s,it):s.url}
+    else{var _adp=ADAPTERS[s.platform]||{};link=_adp.getStoreUrl?_adp.getStoreUrl(s,it):s.getStoreUrl?s.getStoreUrl(it):s.url}
     var oos=isOos(it,s.id);
     var diff=isFormatUncertain(it,s);
     o+='<span class="badge'+(oos?" oos":"")+(diff?" diff":"")+'" style="'+(diff?"":"background:"+s.color+"15;color:"+s.color)+'">';
@@ -1093,8 +1119,8 @@ function groupBadgesHTML(items){
         seen[s.id]=true;
         var oos=true;
         for(var j=0;j<items.length;j++){var rj=S.results[s.id]&&S.results[s.id][items[j]._key];if(rj&&rj.s==="found"&&!rj.oos){oos=false;break}}
-        var _adp2=ADAPTERS[s.platform]||{};var _gsu2=_adp2.getStoreUrl||s.getStoreUrl;
-        var link=r.storeUrl||(_gsu2?_gsu2(s,items[0]):s.url);
+        var _adp2=ADAPTERS[s.platform]||{};
+        var link=r.storeUrl||(_adp2.getStoreUrl?_adp2.getStoreUrl(s,items[0]):s.getStoreUrl?s.getStoreUrl(items[0]):s.url);
         if(s.platform==="discogs"&&items[0].id)link="https://www.discogs.com/sell/release/"+items[0].id+"?ev=rb&seller_id="+encodeURIComponent(s.seller);
         o+='<span class="badge'+(oos?" oos":"")+'" style="background:'+s.color+'15;color:'+s.color+'">'+
           '<a href="'+h(link)+'" target="_blank" style="color:'+s.color+'">'+h(s.short)+'</a>'+
