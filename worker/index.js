@@ -100,6 +100,12 @@ export default {
       return handleMarket(marketId, env);
     }
 
+    // --- Artwork endpoint (iTunes Search) ---
+    const artworkQuery = searchParams.get("artwork");
+    if (artworkQuery !== null) {
+      return handleArtwork(artworkQuery, env);
+    }
+
     // --- Store suggestion endpoint (POST) ---
     if (searchParams.has("suggest")) {
       return handleSuggest(request, env);
@@ -420,7 +426,11 @@ async function handleResolve(query, env) {
   const cacheKey = "resolve:" + (artist + ":" + title).toLowerCase().slice(0, 80);
   try {
     const cached = await env.INVENTORY_KV.get(cacheKey);
-    if (cached !== null) return json({ id: cached || null, cached: true });
+    if (cached !== null) {
+      // Handle both new JSON format {id,thumb} and legacy plain-string format
+      try { const obj = JSON.parse(cached); return json({ ...obj, cached: true }); }
+      catch (_) { return json({ id: cached || null, cached: true }); }
+    }
   } catch (e) {}
 
   try {
@@ -431,19 +441,56 @@ async function handleResolve(query, env) {
     const r = await fetch(url, {
       headers: {
         "Authorization": `Discogs token=${env.DISCOGS_TOKEN}`,
-        "User-Agent": "PortoWantlistTracker/3.3",
+        "User-Agent": "PortoWantlistTracker/3.4",
       },
     });
     if (!r.ok) return json({ id: null });
     const data = await r.json();
     const results = data.results || [];
     const id = results.length > 0 ? String(results[0].id) : "";
+    const thumb = results.length > 0 ? (results[0].cover_image || results[0].thumb || "") : "";
     try {
-      await env.INVENTORY_KV.put(cacheKey, id, { expirationTtl: 7 * 24 * 60 * 60 });
+      await env.INVENTORY_KV.put(cacheKey, JSON.stringify({ id: id || null, thumb: thumb || null }), { expirationTtl: 7 * 24 * 60 * 60 });
     } catch (e) {}
-    return json({ id: id || null });
+    return json({ id: id || null, thumb: thumb || null });
   } catch (err) {
     return json({ id: null, error: err.message });
+  }
+}
+
+// ============================================================
+// Artwork endpoint: fetch cover art via iTunes Search API
+// ============================================================
+async function handleArtwork(query, env) {
+  const parts = decodeURIComponent(query).split("\n");
+  const artist = (parts[0] || "").trim();
+  const title = (parts[1] || "").trim();
+  if (!artist && !title) return json({ thumb: null });
+
+  const cacheKey = "art:" + (artist + ":" + title).toLowerCase().slice(0, 80);
+  try {
+    const cached = await env.INVENTORY_KV.get(cacheKey);
+    if (cached !== null) return json({ thumb: cached || null, cached: true });
+  } catch (e) {}
+
+  try {
+    const term = encodeURIComponent(artist + " " + title);
+    const url = `https://itunes.apple.com/search?term=${term}&entity=album&limit=3`;
+    const r = await fetch(url);
+    if (!r.ok) return json({ thumb: null });
+    const data = await r.json();
+    const results = data.results || [];
+    let thumb = "";
+    if (results.length > 0) {
+      thumb = results[0].artworkUrl100 || "";
+      if (thumb) thumb = thumb.replace("100x100", "300x300");
+    }
+    try {
+      await env.INVENTORY_KV.put(cacheKey, thumb, { expirationTtl: 7 * 24 * 60 * 60 });
+    } catch (e) {}
+    return json({ thumb: thumb || null });
+  } catch (err) {
+    return json({ thumb: null });
   }
 }
 

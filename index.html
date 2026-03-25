@@ -688,7 +688,7 @@ async function fetchMBCollection(){
     S.sources=S.sources.concat(["MusicBrainz \u00b7 "+colNames]);
     S.addingSource=false;S.loaded=true
   }catch(e){S.error=e.message;S.addingSource=false}
-  S.loading=false;S.progress=null;S.lastChecked=null;saveState();render()}
+  S.loading=false;S.progress=null;S.lastChecked=null;saveState();render();fetchCovers()}
 
 /* ========== DISCOGS WANTLIST ========== */
 async function fetchWL(){
@@ -866,7 +866,7 @@ async function resolveDiscogsIds(){
     try{
       var q=encodeURIComponent(artFirst(it.artist)+"\n"+it.title);
       var r=await fetch(WORKER+"?resolve="+q);
-      if(r.ok){var d=await r.json();if(d.id){it.id=d.id;it._key=d.id}}
+      if(r.ok){var d=await r.json();if(d.id){it.id=d.id;it._key=d.id;if(d.thumb&&!it.thumb)it.thumb=d.thumb}}
     }catch(e){}
     done++;
     S.checkProg={done:done,tot:tot,found:0};
@@ -874,6 +874,24 @@ async function resolveDiscogsIds(){
     var pf=$("chkfill");if(pf)pf.style.width=Math.round(done/tot*100)+"%";
     if(i<toResolve.length-1&&!S.cabort&&!S.cskip)await wait(1100)}
   if(S.cskip)console.log("[resolve] Skipped ID resolution")}
+
+/* ========== COVER ART FETCH ========== */
+var _coverAbort=false;
+async function fetchCovers(){
+  _coverAbort=false;
+  var toFetch=S.items.filter(function(it){return!it.thumb});
+  if(!toFetch.length)return;
+  for(var i=0;i<toFetch.length;i++){
+    if(_coverAbort||!S.loaded)return;
+    var it=toFetch[i];
+    try{
+      var q=encodeURIComponent(artFirst(it.artist)+"\n"+it.title);
+      var r=await fetch(WORKER+"?artwork="+q);
+      if(r.ok){var d=await r.json();if(d.thumb)it.thumb=d.thumb}
+    }catch(e){}
+    if((i+1)%15===0){render();saveState()}
+    if(i<toFetch.length-1)await wait(200)}
+  render();saveState()}
 
 /* ========== CATALOG PRE-FETCH ========== */
 var SHOPIFY_CATALOG_IDS=new Set(["musicriots","discosdobau","flur"]);
@@ -1242,7 +1260,7 @@ function wireLoginCard(){
       if(merging){newItems=newItems.filter(function(it){return!isDuplicate(it)});S.items=S.items.concat(newItems)}
       else{S.items=newItems;S.results={};S.invCache={};S.sources=[];S.search="";S.format="all";S.onlyFound=false;S.filterStores={};S.vis=PER_PAGE;}
       var srcLabel=S.csvPreview.format==="itunes"?"iTunes":"CSV";
-      S.sources=S.sources.concat([srcLabel]);S.addingSource=false;S.loaded=true;S.lastChecked=null;saveState();render()}});
+      S.sources=S.sources.concat([srcLabel]);S.addingSource=false;S.loaded=true;S.lastChecked=null;saveState();render();fetchCovers()}});
   var bcsvback=$("bcsvback");
   if(bcsvback)bcsvback.addEventListener("click",function(){S.csvPreview=null;render()})}
 
@@ -1404,7 +1422,7 @@ function render(){
   if(S.addingSource)wireLoginCard();
 
   /* Events */
-  $("brs").addEventListener("click",function(){S.loaded=false;S.items=[];S.error=null;S.results={};S.invCache={};S.sources=[];S.addingSource=false;S.lastChecked=null;clearSaved();render()});
+  $("brs").addEventListener("click",function(){_coverAbort=true;S.loaded=false;S.items=[];S.error=null;S.results={};S.invCache={};S.sources=[];S.addingSource=false;S.lastChecked=null;clearSaved();render()});
   var badd=$("badd");if(badd)badd.addEventListener("click",function(){S.addingSource=true;S.error=null;render()});
   var bexp=$("bexp");if(bexp)bexp.addEventListener("click",exportCSV);
   var brl=$("brl");if(brl)brl.addEventListener("click",function(){
