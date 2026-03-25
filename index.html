@@ -496,8 +496,10 @@ function clearSaved(){
   try{localStorage.removeItem(SAVE_KEY)}catch(e){}}
 
 /* Migrate from old sessionStorage credentials */
+var _restoredFromSave=false;
 try{
-  if(!loadState()){
+  _restoredFromSave=loadState();
+  if(!_restoredFromSave){
     S.user=sessionStorage.getItem("dg_u")||"";
     S.mbUser=sessionStorage.getItem("mb_u")||""
   }
@@ -880,7 +882,8 @@ var _coverAbort=false;
 async function fetchCovers(){
   _coverAbort=false;
   var toFetch=S.items.filter(function(it){return!it.thumb});
-  if(!toFetch.length)return;
+  if(!toFetch.length){console.log("[covers] All items have covers");return}
+  console.log("[covers] Fetching covers for "+toFetch.length+" items");
   for(var i=0;i<toFetch.length;i++){
     if(_coverAbort||!S.loaded)return;
     var it=toFetch[i];
@@ -1476,7 +1479,8 @@ function render(){
       else{S.suggestMsg=null;S.error="Suggestion failed: "+(d.error||"unknown error");render()}
     }).catch(function(e){S.suggestSending=false;S.suggestMsg=null;S.error="Suggestion failed: "+e.message;render()})})}
 
-render()
+render();
+if(_restoredFromSave)fetchCovers()
 })();
 </script>
 </body>
