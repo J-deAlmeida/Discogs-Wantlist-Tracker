@@ -332,6 +332,15 @@ async function handleProxy(target) {
       .trim()
       .slice(0, 10000);
 
+    // --- Extract individual product titles from search result pages ---
+    const productTitles = [];
+    const ptRe = /<a[^>]+class=["'][^"']*product[- ](?:item[- ]link|name)[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi;
+    let ptm;
+    while ((ptm = ptRe.exec(body)) !== null && productTitles.length < 200) {
+      const txt = ptm[1].replace(/<[^>]+>/g, "").replace(/&[a-z]+;/gi, " ").replace(/&#\d+;/gi, " ").replace(/\s+/g, " ").trim();
+      if (txt.length > 1) productTitles.push(txt);
+    }
+
     return json({
       title,
       ogTitle,
@@ -341,6 +350,7 @@ async function handleProxy(target) {
       hasBuyButton,
       hasOutOfStock,
       bodyText,
+      productTitles: productTitles.length > 0 ? productTitles : undefined,
       status: resp.status,
       finalUrl: resp.url,
     });

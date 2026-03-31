@@ -254,7 +254,10 @@ function detectAndParse(text,filename){
   return parseCSV(text)}
 function qry(it){
   var t=it.title.replace(/[+&]/g," ").replace(/,(\d)/g,"$1").trim();
-  return artFirst(it.artist)+" "+t}
+  var a=artFirst(it.artist);
+  /* Avoid doubling query for self-titled albums */
+  if(norm(a)===norm(t))return t;
+  return a+" "+t}
 function qryTitle(it){return it.title.replace(/[+&]/g," ").replace(/,(\d)/g,"$1").trim()}
 function textMatch(body,artist,title){
   var b=norm(body),a=norm(artist),t=norm(title);
@@ -315,7 +318,10 @@ var ADAPTERS={
     getStoreUrl:function(s,it){return'https://vinyldisc.pt/#page=0&q='+encodeURIComponent(qryTitle(it))}},
   'text-match':{
     getCheckUrl:function(s,it){return s.searchUrl.replace('{{titleQuery}}',encodeURIComponent(qryTitle(it)))},
-    detect:function(s,j,it){if(!j.bodyText)return{s:'err'};var b=norm(j.bodyText),ti=norm(it.title),ai=norm(artFirst(it.artist));if(ti.length<3)return{s:'no'};if(b.indexOf(ti)!==-1&&(ai.length<3||b.indexOf(ai)!==-1)){var oos=/no stock|sem stock|esgotado|sold out|out of stock|indispon/i.test(j.bodyText);return{s:'found',oos:oos}}return{s:'no'}},
+    detect:function(s,j,it){if(!j.bodyText)return{s:'err'};var b=norm(j.bodyText),ti=norm(it.title),ai=norm(artFirst(it.artist));if(ti.length<3)return{s:'no'};
+      /* If product titles available, match against individual products */
+      var matched=false;if(j.productTitles&&j.productTitles.length>0){for(var p=0;p<j.productTitles.length;p++){var pt=norm(j.productTitles[p]);if(pt.indexOf(ti)!==-1&&(ai.length<3||pt.indexOf(ai)!==-1)){matched=true;break}}}else{matched=b.indexOf(ti)!==-1&&(ai.length<3||b.indexOf(ai)!==-1)}
+      if(!matched)return{s:'no'};var oos=/no stock|sem stock|esgotado|sold out|out of stock|indispon/i.test(j.bodyText);return{s:'found',oos:oos}},
     getStoreUrl:function(s,it){return s.searchUrl.replace('{{titleQuery}}',encodeURIComponent(qryTitle(it)))}},
   'woocommerce':{
     getCheckUrl:function(s,it){return s.searchUrl.replace('{{query}}',encodeURIComponent(qry(it)))},
@@ -327,7 +333,10 @@ var ADAPTERS={
     getStoreUrl:function(s,it){return s.baseUrl+'/'+slug(artFirst(it.artist)+'-'+it.title)}},
   'magento':{
     getCheckUrl:function(s,it){return s.searchUrl.replace('{{titleQuery}}',encodeURIComponent(qryTitle(it)))},
-    detect:function(s,j,it){if(!j.bodyText)return{s:'err'};var b=norm(j.bodyText),ti=norm(it.title),ai=norm(artFirst(it.artist));var itemMatch=j.bodyText.match(/(\d+)\s*Items?\b/i);var itemCount=itemMatch?parseInt(itemMatch[1]):0;if(itemCount===0||b.indexOf('your search returned no results')!==-1)return{s:'no'};if(ti.length<5||ai.length<3)return{s:'no'};if(b.indexOf(ti)===-1||b.indexOf(ai)===-1)return{s:'no'};var oos=/out of stock|esgotado|fora de stock|sem stock/i.test(j.bodyText);return{s:'found',oos:oos}},
+    detect:function(s,j,it){if(!j.bodyText)return{s:'err'};var b=norm(j.bodyText),ti=norm(it.title),ai=norm(artFirst(it.artist));var itemMatch=j.bodyText.match(/(\d+)\s*Items?\b/i);var itemCount=itemMatch?parseInt(itemMatch[1]):0;if(itemCount===0||b.indexOf('your search returned no results')!==-1)return{s:'no'};if(ti.length<5||ai.length<3)return{s:'no'};
+      /* If worker returned individual product titles, match against those instead of full page */
+      if(j.productTitles&&j.productTitles.length>0){var found=false;for(var p=0;p<j.productTitles.length;p++){var pt=norm(j.productTitles[p]);if(pt.indexOf(ti)!==-1&&pt.indexOf(ai)!==-1){found=true;break}}if(!found)return{s:'no'}}else{if(b.indexOf(ti)===-1||b.indexOf(ai)===-1)return{s:'no'}}
+      var oos=/out of stock|esgotado|fora de stock|sem stock/i.test(j.bodyText);return{s:'found',oos:oos}},
     getStoreUrl:function(s,it){return s.searchUrl.replace('{{titleQuery}}',encodeURIComponent(qry(it)))}},
   'discogs-market':{
     getEndpoint:function(s,it){if(!it.id)return null;return WORKER+'?market='+encodeURIComponent(it.id)},
@@ -359,7 +368,7 @@ var STORES=[
    getStoreUrl:function(it){if(!it.id)return"https://www.8mm-records.com";return"https://www.8mm-records.com/release/"+it.id+"/"+slug(artFirst(it.artist)+"-"+it.title)}},
 
   {id:"materia",name:"Mat\u00e9ria Prima",short:"Mat\u00e9ria",platform:"text-match",color:"#0F6E56",city:"porto",
-   logo:"img/materia.png",url:"https://www.materiaprima.pt",defOn:false,concurrent:2,delay:600,
+   logo:"img/materia.png",url:"https://www.materiaprima.pt",defOn:false,confirmStock:true,concurrent:2,delay:600,
    map:"https://www.google.com/maps/search/Materia+Prima+Miguel+Bombarda+Porto",
    searchUrl:"https://www.materiaprima.pt/lista.php?search={{titleQuery}}"},
 
